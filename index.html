@@ -1,0 +1,2632 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Fangtagebuch"/>
+  <meta name="theme-color" content="#0d1117"/>
+  <title>Fangtagebuch · Fischerverein Ultental</title>
+
+  <!-- PWA Manifest inline -->
+  <script>
+    const manifest = {
+      name: "Fangtagebuch Ultental",
+      short_name: "Fangtagebuch",
+      description: "Fischerverein Ultental – Persönliches Fangtagebuch",
+      start_url: "./",
+      display: "standalone",
+      background_color: "#0d1117",
+      theme_color: "#0d1117",
+      orientation: "portrait",
+      icons: [
+        { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230d1117'/%3E%3Ctext x='50%25' y='55%25' font-size='120' text-anchor='middle' dominant-baseline='middle'%3E🎣%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
+        { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230d1117'/%3E%3Ctext x='50%25' y='55%25' font-size='320' text-anchor='middle' dominant-baseline='middle'%3E🎣%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], {type: "application/json"});
+    const manifestURL = URL.createObjectURL(blob);
+    document.addEventListener("DOMContentLoaded", () => {
+      const link = document.createElement("link");
+      link.rel = "manifest";
+      link.href = manifestURL;
+      document.head.appendChild(link);
+    });
+  </script>
+
+  <!-- Apple touch icon via SVG data URL -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='28' fill='%230d1117'/%3E%3Ctext x='50%25' y='55%25' font-size='110' text-anchor='middle' dominant-baseline='middle'%3E🎣%3C/text%3E%3C/svg%3E"/>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: #0d1117; overflow: hidden; }
+    #root { height: 100%; }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #3a4858; border-radius: 3px; }
+    /* Prevent iOS bounce */
+    body { overscroll-behavior: none; }
+    /* Safe area insets for iPhone notch/home indicator */
+    #root > div { padding-bottom: env(safe-area-inset-bottom); }
+    input, select, textarea { font-size: 16px !important; } /* prevent iOS zoom */
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React 18 -->
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+  <!-- Recharts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+
+  <!-- Babel standalone for JSX transpilation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
+
+  <!-- Destructure React hooks globally so JSX code can use them without imports -->
+  <script>
+    const { useState, useEffect, useCallback, useRef, useMemo } = React;
+    // Make Recharts components available globally
+    const { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = Recharts;
+  </script>
+
+  <!-- App Code -->
+  <script type="text/babel" data-presets="react">
+
+// ─── STORAGE ───────────────────────────────────────────────────────────────────
+const STORAGE_KEY = "fischerei-ulten-catches";
+
+// ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://ovkewldjwtagrpivkgyc.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92a2V3bGRqd3RhZ3JwaXZrZ3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTQ4NjksImV4cCI6MjA4ODIzMDg2OX0.JSS4hWk1Jt64Ul8PPHRe06ldbI9jsmrN1lFS8h809Bk";
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: {
+      "apikey": SUPABASE_ANON,
+      "Authorization": "Bearer " + SUPABASE_ANON,
+      "Content-Type": "application/json",
+      "Prefer": options.prefer || "",
+      ...options.headers,
+    }
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function loadCatches() {
+  try {
+    // Try Supabase first
+    const rows = await sbFetch("/rest/v1/catches?select=*&order=date.desc");
+    const catches = rows.map(r => ({
+      id: r.id,
+      species: r.species,
+      length: r.length,
+      water: r.water,
+      weight: r.weight,
+      bait: r.bait,
+      photo: r.photo,
+      date: r.date,
+      season: r.season,
+    }));
+    // Also cache locally as backup
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catches)); } catch {}
+    return catches;
+  } catch (e) {
+    console.warn("Supabase offline, using local cache:", e.message);
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch { return []; }
+  }
+}
+
+async function saveCatches(catches) {
+  // Always update local cache immediately
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catches)); } catch {}
+  // Sync to Supabase in background – upsert all
+  try {
+    const rows = catches.map(c => ({
+      id: c.id,
+      species: c.species,
+      length: c.length,
+      water: c.water,
+      weight: c.weight || null,
+      bait: c.bait || null,
+      photo: c.photo || null,
+      date: c.date,
+      season: c.season,
+    }));
+    await sbFetch("/rest/v1/catches", {
+      method: "POST",
+      prefer: "resolution=merge-duplicates",
+      body: JSON.stringify(rows),
+    });
+  } catch (e) {
+    console.warn("Supabase sync failed:", e.message);
+  }
+}
+
+async function deleteCatchFromDB(id) {
+  try {
+    await sbFetch("/rest/v1/catches?id=eq." + id, { method: "DELETE" });
+  } catch (e) {
+    console.warn("Delete from Supabase failed:", e.message);
+  }
+}
+
+// ─── FISH DATA ─────────────────────────────────────────────────────────────────
+const FISH_SPECIES = [
+  { id: "regenbogenforelle", name: "Regenbogenforelle", latin: "Oncorhynchus mykiss", um: 25, nm: 55, tr: 75, color: "#c0a882", svgType: "rainbow" },
+  { id: "bachforelle", name: "Bachforelle", latin: "Salmo trutta fario", um: 25, nm: 55, tr: 75, color: "#a07850", svgType: "brown" },
+  { id: "marmorierte", name: "Marmorierte Forelle", latin: "Salmo marmoratus", um: 35, nm: 55, tr: 75, color: "#7a9a6a", svgType: "marble" },
+  { id: "seeforelle", name: "Seeforelle", latin: "Salmo trutta lacustris", um: 27, nm: 55, tr: 75, color: "#8899bb", svgType: "lake" },
+  { id: "seesaibling", name: "Seesaibling", latin: "Salvelinus alpinus", um: 25, nm: 50, tr: 70, color: "#cc7755", svgType: "arctic" },
+  { id: "bachsaibling", name: "Bachsaibling", latin: "Salvelinus fontinalis", um: 27, nm: 50, tr: 70, color: "#dd6644", svgType: "brook" },
+  { id: "aesche", name: "Äsche", latin: "Thymallus thymallus", um: 30, nm: 45, tr: 65, color: "#aabbcc", svgType: "grayling" },
+  { id: "hecht", name: "Hecht", latin: "Esox lucius", um: 40, nm: 90, tr: 110, color: "#6b8c5a", svgType: "pike" },
+  { id: "flussbarsch", name: "Flussbarsch", latin: "Perca fluviatilis", um: 15, nm: 35, tr: 45, color: "#d4a843", svgType: "perch" },
+  { id: "rotauge", name: "Rotauge", latin: "Rutilus rutilus", um: 15, nm: 35, tr: 45, color: "#cc4422", svgType: "roach" },
+  { id: "rotfeder", name: "Rotfeder", latin: "Scardinius erythrophthalmus", um: 15, nm: 35, tr: 45, color: "#dd5533", svgType: "rudd" },
+  { id: "karausche", name: "Karausche / Giebel", latin: "Carassius carassius", um: 20, nm: 45, tr: 55, color: "#c8a040", svgType: "crucian" },
+  { id: "karpfen", name: "Karpfen", latin: "Cyprinus carpio", um: 30, nm: 70, tr: 100, color: "#b09060", svgType: "carp" },
+];
+
+const ULTEN_WATERS = [
+  "Weißbrunnerstausee",
+  "Fischersee",
+  "Grünsee",
+  "Zoggler Stausee",
+  "Pankrazer Stausee",
+  "Plombodensee",
+  "Kofelrastersee",
+  "Alplanersee",
+  "Schrummsee",
+  "Folkamoisee",
+  "Seefeldsee",
+  "Spitzensee",
+  "Falschauer (Oberlauf)",
+  "Falschauer (Mittellauf)",
+  "Flatschbergbach",
+  "Kirchberg- / Klapfbergbach",
+  "Auerberg- / Schwarzenbach",
+];
+
+function getStatus(fish, length) {
+  if (length < fish.um) return "UM";
+  if (length < fish.nm) return "NM";
+  if (length < fish.tr) return "TR";
+  return "ST";
+}
+
+const STATUS_CONFIG = {
+  UM: { label: "Untermaß", bg: "#374151", text: "#9ca3af", icon: "✓", flagColor: "#6b7280", borderColor: "#4b5563" },
+  NM: { label: "Normalmaß", bg: "#14532d", text: "#86efac", icon: "🏴", flagColor: "#22c55e", borderColor: "#16a34a" },
+  TR: { label: "Trophäe", bg: "#422006", text: "#fcd34d", icon: "⭐", flagColor: "#f59e0b", borderColor: "#d97706" },
+  ST: { label: "Super-Trophäe", bg: "#1e1b4b", text: "#a5b4fc", icon: "🌟", flagColor: "#6366f1", borderColor: "#4f46e5" },
+};
+
+// ─── SVG FISH ILLUSTRATIONS (Realistic) ───────────────────────────────────────
+function FishSVG({ type, size = 120 }) {
+  const w = size;
+  const h = Math.round(size * 0.52);
+
+  const fishes = {
+
+    // ── REGENBOGENFORELLE ─────────────────────────────────────────────────────
+    rainbow: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="rb-body" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#7ab8d0"/>
+            <stop offset="40%" stopColor="#a8cfe0"/>
+            <stop offset="70%" stopColor="#c0dce8"/>
+            <stop offset="100%" stopColor="#8ab8cc"/>
+          </linearGradient>
+          <linearGradient id="rb-belly" x1="0" y1="30" x2="0" y2="70" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#d8eef8"/>
+            <stop offset="100%" stopColor="#f0f8ff"/>
+          </linearGradient>
+          <clipPath id="rb-clip">
+            <path d="M20 41 C20 20 50 10 90 10 C120 10 145 22 152 41 C145 60 120 72 90 72 C50 72 20 62 20 41Z"/>
+          </clipPath>
+        </defs>
+        {/* tail */}
+        <path d="M20 41 C10 28 2 20 5 41 C2 62 10 54 20 41Z" fill="#6aaac0" stroke="#4a8aaa" strokeWidth="0.8"/>
+        {/* body */}
+        <path d="M20 41 C20 20 50 10 90 10 C120 10 145 22 152 41 C145 60 120 72 90 72 C50 72 20 62 20 41Z" fill="url(#rb-body)"/>
+        {/* belly */}
+        <path d="M25 48 C40 65 70 72 100 68 C125 64 142 55 150 44 C140 58 118 70 88 70 C60 70 35 60 25 48Z" fill="url(#rb-belly)" opacity="0.7"/>
+        {/* pink lateral stripe */}
+        <path d="M22 40 Q60 36 100 38 Q130 39 150 42" stroke="#e87aaa" strokeWidth="5" fill="none" opacity="0.55" strokeLinecap="round"/>
+        <path d="M22 40 Q60 36 100 38 Q130 39 150 42" stroke="#f4aacb" strokeWidth="2.5" fill="none" opacity="0.6" strokeLinecap="round"/>
+        {/* scales */}
+        <g clipPath="url(#rb-clip)" opacity="0.25">
+          {[35,50,65,80,95,110,125,138].map((x,i)=>[0,1].map(j=>(
+            <ellipse key={`${i}-${j}`} cx={x+(j*7)} cy={30+j*22} rx="8" ry="5" fill="none" stroke="#2060a0" strokeWidth="0.6"/>
+          )))}
+          {[42,57,72,87,102,117,132].map((x,i)=>(
+            <ellipse key={`m${i}`} cx={x} cy={41} rx="8" ry="5" fill="none" stroke="#2060a0" strokeWidth="0.6"/>
+          ))}
+        </g>
+        {/* black & red spots */}
+        {[[70,28],[82,23],[95,26],[108,30],[75,35],[90,33],[105,38],[118,35],[88,45],[100,48],[115,44],[128,40]].map(([cx,cy],i)=>(
+          <circle key={`bs${i}`} cx={cx} cy={cy} r="1.8" fill="#1a1a1a" opacity="0.65"/>
+        ))}
+        {[[68,34],[80,30],[92,36],[106,42],[119,38]].map(([cx,cy],i)=>(
+          <circle key={`rs${i}`} cx={cx} cy={cy} r="1.2" fill="#cc2244" opacity="0.55"/>
+        ))}
+        {/* dorsal fin */}
+        <path d="M55 10 C65 2 80 0 95 2 C105 4 112 8 110 12 C98 10 80 9 55 10Z" fill="#7ab8cc" stroke="#5090aa" strokeWidth="0.7" opacity="0.9"/>
+        <path d="M57 10 L62 3M70 9 L74 1M82 9 L85 1M93 9 L95 2M103 10 L106 5" stroke="#4a8aaa" strokeWidth="0.5" opacity="0.6"/>
+        {/* adipose fin */}
+        <path d="M38 18 C33 12 28 14 30 20 C32 24 36 22 38 18Z" fill="#7ab8cc" stroke="#5090aa" strokeWidth="0.6"/>
+        {/* pectoral fin */}
+        <path d="M128 36 C138 30 148 32 150 38 C148 44 138 46 128 44Z" fill="#a8d0e8" stroke="#7aaac0" strokeWidth="0.7" opacity="0.8"/>
+        {/* ventral fin */}
+        <path d="M90 70 C86 78 80 80 78 75 C80 70 87 68 90 70Z" fill="#a8d0e8" stroke="#7aaac0" strokeWidth="0.6"/>
+        {/* anal fin */}
+        <path d="M70 70 C65 78 58 79 57 73 C59 68 67 67 70 70Z" fill="#a8d0e8" stroke="#7aaac0" strokeWidth="0.6"/>
+        {/* head shading */}
+        <path d="M145 30 Q158 41 145 52 Q155 41 145 30Z" fill="#5090a8" opacity="0.3"/>
+        {/* eye */}
+        <circle cx="145" cy="37" r="5" fill="#1a2030"/>
+        <circle cx="145" cy="37" r="3.5" fill="#2a3848"/>
+        <circle cx="146.5" cy="35.5" r="1.5" fill="white" opacity="0.9"/>
+        {/* mouth */}
+        <path d="M152 39 Q158 41 155 44" stroke="#5a7888" strokeWidth="1.2" fill="none"/>
+        <path d="M152 43 Q158 41 155 38" stroke="#4a6878" strokeWidth="0.8" fill="none"/>
+        {/* gill plate */}
+        <path d="M128 25 Q140 30 142 41 Q140 52 128 57" stroke="#6aaac0" strokeWidth="1.5" fill="none" opacity="0.5"/>
+      </svg>
+    ),
+
+    // ── BACHFORELLE ──────────────────────────────────────────────────────────
+    brown: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="bt-body" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#8a6040"/>
+            <stop offset="35%" stopColor="#c09060"/>
+            <stop offset="65%" stopColor="#d4a870"/>
+            <stop offset="100%" stopColor="#a07040"/>
+          </linearGradient>
+          <linearGradient id="bt-belly" x1="0" y1="35" x2="0" y2="72" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#e8c898"/>
+            <stop offset="100%" stopColor="#f8e8c8"/>
+          </linearGradient>
+          <clipPath id="bt-clip">
+            <path d="M22 41 C22 21 52 11 88 11 C118 11 143 23 150 41 C143 59 118 71 88 71 C52 71 22 61 22 41Z"/>
+          </clipPath>
+        </defs>
+        {/* tail */}
+        <path d="M22 41 C12 27 3 20 6 41 C3 62 12 55 22 41Z" fill="#7a5030" stroke="#5a3820" strokeWidth="0.8"/>
+        {/* body */}
+        <path d="M22 41 C22 21 52 11 88 11 C118 11 143 23 150 41 C143 59 118 71 88 71 C52 71 22 61 22 41Z" fill="url(#bt-body)"/>
+        {/* belly */}
+        <path d="M26 50 C42 66 70 71 98 68 C122 64 140 55 148 44 C136 57 116 69 86 69 C60 69 36 60 26 50Z" fill="url(#bt-belly)" opacity="0.8"/>
+        {/* scales */}
+        <g clipPath="url(#bt-clip)" opacity="0.2">
+          {[38,53,68,83,98,113,128,140].map((x,i)=>[0,1].map(j=>(
+            <ellipse key={`${i}-${j}`} cx={x+(j*7)} cy={29+j*22} rx="8" ry="5" fill="none" stroke="#5a3010" strokeWidth="0.7"/>
+          )))}
+          {[44,59,74,89,104,119,134].map((x,i)=>(
+            <ellipse key={`bm${i}`} cx={x} cy={41} rx="8" ry="5" fill="none" stroke="#5a3010" strokeWidth="0.7"/>
+          ))}
+        </g>
+        {/* red spots with pale halos */}
+        {[[68,32],[82,27],[95,30],[108,34],[75,38],[90,35],[105,40],[118,37],[132,33]].map(([cx,cy],i)=>(
+          <g key={`rh${i}`}>
+            <circle cx={cx} cy={cy} r="3.5" fill="#d8c8b0" opacity="0.4"/>
+            <circle cx={cx} cy={cy} r="2" fill="#cc2200" opacity="0.75"/>
+          </g>
+        ))}
+        {/* black spots */}
+        {[[72,25],[86,22],[100,25],[113,28],[78,33],[94,38],[108,43],[122,40],[136,36]].map(([cx,cy],i)=>(
+          <circle key={`bk${i}`} cx={cx} cy={cy} r="1.8" fill="#1a0a00" opacity="0.6"/>
+        ))}
+        {/* dorsal fin */}
+        <path d="M56 11 C67 2 82 0 97 2 C107 4 114 9 112 13 C100 11 82 10 56 11Z" fill="#a07040" stroke="#6a4020" strokeWidth="0.7"/>
+        <path d="M58 11 L63 3M72 10 L76 2M84 10 L87 2M96 10 L98 3M106 11 L109 5" stroke="#7a4030" strokeWidth="0.5" opacity="0.7"/>
+        {/* spots on dorsal */}
+        <circle cx="68" cy="5" r="1.3" fill="#220800" opacity="0.5"/>
+        <circle cx="80" cy="4" r="1.3" fill="#220800" opacity="0.5"/>
+        <circle cx="92" cy="4" r="1.3" fill="#220800" opacity="0.5"/>
+        {/* adipose fin */}
+        <path d="M38 19 C32 13 27 15 29 21 C31 25 36 23 38 19Z" fill="#a07040" stroke="#6a4020" strokeWidth="0.6"/>
+        {/* pectoral fin */}
+        <path d="M126 37 C136 31 147 33 148 39 C147 45 136 47 126 44Z" fill="#c0a070" stroke="#8a6040" strokeWidth="0.7" opacity="0.85"/>
+        {/* ventral fins */}
+        <path d="M91 69 C87 78 81 80 79 74 C81 69 88 67 91 69Z" fill="#c0a070" stroke="#8a6040" strokeWidth="0.6"/>
+        <path d="M73 69 C68 78 61 79 60 73 C62 68 70 66 73 69Z" fill="#c0a070" stroke="#8a6040" strokeWidth="0.6"/>
+        {/* eye */}
+        <circle cx="143" cy="37" r="5.5" fill="#1a0a00"/>
+        <circle cx="143" cy="37" r="4" fill="#3a1808"/>
+        <circle cx="144.5" cy="35.5" r="1.5" fill="white" opacity="0.9"/>
+        {/* mouth */}
+        <path d="M150 39 Q157 41 154 44" stroke="#6a4030" strokeWidth="1.2" fill="none"/>
+        <path d="M150 43 Q157 41 154 38" stroke="#5a3020" strokeWidth="0.8" fill="none"/>
+        {/* gill */}
+        <path d="M126 26 Q138 31 140 41 Q138 51 126 56" stroke="#8a6040" strokeWidth="1.5" fill="none" opacity="0.45"/>
+      </svg>
+    ),
+
+    // ── MARMORIERTE FORELLE ──────────────────────────────────────────────────
+    marble: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="mf-body" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#607858"/>
+            <stop offset="40%" stopColor="#88a870"/>
+            <stop offset="70%" stopColor="#98b880"/>
+            <stop offset="100%" stopColor="#708860"/>
+          </linearGradient>
+          <clipPath id="mf-clip">
+            <path d="M18 41 C18 19 50 8 92 8 C126 8 150 22 156 41 C150 60 126 74 92 74 C50 74 18 63 18 41Z"/>
+          </clipPath>
+        </defs>
+        {/* tail – forked */}
+        <path d="M18 41 C8 25 0 18 4 41 C0 64 8 57 18 41Z" fill="#507048" stroke="#385830" strokeWidth="0.8"/>
+        {/* body */}
+        <path d="M18 41 C18 19 50 8 92 8 C126 8 150 22 156 41 C150 60 126 74 92 74 C50 74 18 63 18 41Z" fill="url(#mf-body)"/>
+        {/* belly */}
+        <path d="M24 52 C42 68 70 74 100 70 C126 66 146 56 154 44 C142 58 120 72 90 72 C64 72 38 63 24 52Z" fill="#d0e0c8" opacity="0.65"/>
+        {/* marble pattern – irregular dark blotches */}
+        <g clipPath="url(#mf-clip)" opacity="0.6">
+          <path d="M35 32 Q42 25 52 30 Q48 38 40 40 Q33 38 35 32Z" fill="#2a4020"/>
+          <path d="M55 22 Q65 16 74 22 Q72 30 62 32 Q53 28 55 22Z" fill="#2a4020"/>
+          <path d="M48 42 Q56 36 65 40 Q64 50 55 52 Q46 49 48 42Z" fill="#2a4020"/>
+          <path d="M72 30 Q80 24 89 28 Q88 38 80 41 Q70 38 72 30Z" fill="#2a4020"/>
+          <path d="M78 50 Q87 44 96 48 Q95 58 86 60 Q76 57 78 50Z" fill="#2a4020"/>
+          <path d="M96 24 Q106 18 115 23 Q114 33 105 36 Q95 33 96 24Z" fill="#2a4020"/>
+          <path d="M100 44 Q110 38 119 43 Q117 53 108 55 Q99 52 100 44Z" fill="#2a4020"/>
+          <path d="M120 30 Q130 25 138 30 Q136 38 128 40 Q119 37 120 30Z" fill="#2a4020"/>
+          <path d="M122 50 Q130 46 137 50 Q135 57 128 58 Q121 55 122 50Z" fill="#2a4020"/>
+          {/* lighter highlights within blotches */}
+          <path d="M38 33 Q43 29 48 32 Q46 37 40 38 Q36 36 38 33Z" fill="#6a8858" opacity="0.5"/>
+          <path d="M75 32 Q80 28 85 31 Q84 37 79 38 Q73 36 75 32Z" fill="#6a8858" opacity="0.5"/>
+        </g>
+        {/* large dorsal fin – characteristic */}
+        <path d="M50 8 C62 -1 80 -2 96 0 C112 2 120 8 118 13 C106 10 85 9 50 8Z" fill="#708860" stroke="#3a5830" strokeWidth="0.8"/>
+        <path d="M52 8 L58 0M66 7 L69 -1M78 7 L81 -1M91 7 L93 0M104 8 L108 2M115 10 L116 5" stroke="#3a5830" strokeWidth="0.5" opacity="0.7"/>
+        {/* adipose fin */}
+        <path d="M33 20 C26 13 22 16 24 23 C26 27 31 25 33 20Z" fill="#708860" stroke="#3a5830" strokeWidth="0.6"/>
+        {/* pec fin */}
+        <path d="M130 36 C140 29 152 32 153 39 C152 46 140 48 130 45Z" fill="#8aaa70" stroke="#507840" strokeWidth="0.7" opacity="0.85"/>
+        {/* ventral fins */}
+        <path d="M93 73 C89 81 82 83 80 77 C82 72 90 70 93 73Z" fill="#8aaa70" stroke="#507840" strokeWidth="0.6"/>
+        <path d="M75 73 C70 81 63 82 62 76 C64 70 72 69 75 73Z" fill="#8aaa70" stroke="#507840" strokeWidth="0.6"/>
+        {/* steely-blue gill plate */}
+        <path d="M132 24 Q146 31 148 41 Q146 51 132 58" stroke="#6888a0" strokeWidth="2" fill="none" opacity="0.6"/>
+        <path d="M130 25 Q143 32 145 41 Q143 50 130 57" fill="#7898b0" opacity="0.18"/>
+        {/* eye */}
+        <circle cx="148" cy="37" r="6" fill="#0a1208"/>
+        <circle cx="148" cy="37" r="4.5" fill="#1a2010"/>
+        <circle cx="149.5" cy="35.5" r="1.8" fill="white" opacity="0.9"/>
+        {/* mouth – large, characteristic */}
+        <path d="M154 38 Q162 41 158 45" stroke="#507840" strokeWidth="1.4" fill="none"/>
+        <path d="M154 44 Q162 41 158 37" stroke="#405830" strokeWidth="1" fill="none"/>
+      </svg>
+    ),
+
+    // ── SEEFORELLE ────────────────────────────────────────────────────────────
+    lake: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="lkt-body" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#7890b0"/>
+            <stop offset="35%" stopColor="#9ab0cc"/>
+            <stop offset="65%" stopColor="#b0c8e0"/>
+            <stop offset="100%" stopColor="#8aa0c0"/>
+          </linearGradient>
+          <clipPath id="lkt-clip">
+            <path d="M20 41 C20 20 52 10 90 10 C122 10 148 23 154 41 C148 59 122 72 90 72 C52 72 20 62 20 41Z"/>
+          </clipPath>
+        </defs>
+        <path d="M20 41 C10 27 2 20 5 41 C2 62 10 55 20 41Z" fill="#6880a8" stroke="#4860a0" strokeWidth="0.8"/>
+        <path d="M20 41 C20 20 52 10 90 10 C122 10 148 23 154 41 C148 59 122 72 90 72 C52 72 20 62 20 41Z" fill="url(#lkt-body)"/>
+        <path d="M24 50 C42 66 70 72 100 68 C124 64 142 54 152 43 C140 57 118 70 88 70 C62 70 38 61 24 50Z" fill="#e8f4ff" opacity="0.6"/>
+        {/* scales */}
+        <g clipPath="url(#lkt-clip)" opacity="0.18">
+          {[40,55,70,85,100,115,130,142].map((x,i)=>[0,1].map(j=>(
+            <ellipse key={`${i}-${j}`} cx={x+(j*7)} cy={28+j*23} rx="9" ry="6" fill="none" stroke="#204880" strokeWidth="0.7"/>
+          )))}
+          {[47,62,77,92,107,122,136].map((x,i)=>(
+            <ellipse key={`lm${i}`} cx={x} cy={41} rx="9" ry="6" fill="none" stroke="#204880" strokeWidth="0.7"/>
+          ))}
+        </g>
+        {/* small black spots – fewer than brown trout */}
+        {[[72,28],[84,24],[96,27],[110,31],[76,36],[92,34],[106,39],[120,36],[133,32]].map(([cx,cy],i)=>(
+          <circle key={`lks${i}`} cx={cx} cy={cy} r="1.5" fill="#0a0a20" opacity="0.55"/>
+        ))}
+        {/* x-shaped spots characteristic of lake trout */}
+        {[[80,42],[94,44],[108,46],[122,43]].map(([cx,cy],i)=>(
+          <g key={`xs${i}`}>
+            <path d={`M${cx-2} ${cy-2} L${cx+2} ${cy+2}M${cx+2} ${cy-2} L${cx-2} ${cy+2}`} stroke="#0a0a20" strokeWidth="1.2" opacity="0.5"/>
+          </g>
+        ))}
+        <path d="M58 10 C68 2 83 0 98 2 C108 4 116 9 114 13 C102 11 83 10 58 10Z" fill="#8aa0c0" stroke="#5880b0" strokeWidth="0.7"/>
+        <path d="M60 10 L64 3M73 9 L77 1M86 9 L88 2M98 9 L100 3M108 10 L111 5" stroke="#4870a0" strokeWidth="0.5" opacity="0.6"/>
+        <path d="M38 19 C32 13 27 15 30 21 C32 25 36 23 38 19Z" fill="#8aa0c0" stroke="#5880b0" strokeWidth="0.6"/>
+        <path d="M128 37 C138 31 150 33 151 40 C150 47 138 48 128 45Z" fill="#aac4dc" stroke="#7a9ab8" strokeWidth="0.7" opacity="0.85"/>
+        <path d="M92 71 C88 79 81 81 79 75 C81 70 89 68 92 71Z" fill="#aac4dc" stroke="#7a9ab8" strokeWidth="0.6"/>
+        <path d="M74 71 C69 79 62 80 61 74 C63 69 71 67 74 71Z" fill="#aac4dc" stroke="#7a9ab8" strokeWidth="0.6"/>
+        <path d="M128 26 Q142 31 144 41 Q142 51 128 56" stroke="#7890b0" strokeWidth="1.5" fill="none" opacity="0.45"/>
+        <circle cx="145" cy="37" r="5.5" fill="#0a1020"/>
+        <circle cx="145" cy="37" r="4" fill="#182030"/>
+        <circle cx="146.5" cy="35.5" r="1.5" fill="white" opacity="0.9"/>
+        <path d="M152 39 Q158 41 155 44" stroke="#5878a0" strokeWidth="1.2" fill="none"/>
+        <path d="M152 43 Q158 41 155 38" stroke="#4868a0" strokeWidth="0.8" fill="none"/>
+      </svg>
+    ),
+
+    // ── SEESAIBLING ──────────────────────────────────────────────────────────
+    arctic: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="ac-body" x1="0" y1="0" x2="0" y2="83" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#405878"/>
+            <stop offset="40%" stopColor="#6888a8"/>
+            <stop offset="100%" stopColor="#e87050"/>
+          </linearGradient>
+          <linearGradient id="ac-belly" x1="0" y1="50" x2="0" y2="72" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#f07060"/>
+            <stop offset="100%" stopColor="#ff9070"/>
+          </linearGradient>
+          <clipPath id="ac-clip">
+            <path d="M22 41 C22 21 52 11 88 11 C118 11 143 23 150 41 C143 59 118 71 88 71 C52 71 22 61 22 41Z"/>
+          </clipPath>
+        </defs>
+        <path d="M22 41 C12 27 3 20 6 41 C3 62 12 55 22 41Z" fill="#506888" stroke="#304858" strokeWidth="0.8"/>
+        <path d="M22 41 C22 21 52 11 88 11 C118 11 143 23 150 41 C143 59 118 71 88 71 C52 71 22 61 22 41Z" fill="url(#ac-body)"/>
+        {/* bright orange-red belly */}
+        <path d="M26 52 C44 68 70 72 98 68 C122 64 140 54 148 43 C136 56 114 69 86 69 C62 69 38 61 26 52Z" fill="url(#ac-belly)" opacity="0.9"/>
+        {/* pale spots characteristic of arctic char */}
+        <g clipPath="url(#ac-clip)">
+          {[[65,28],[78,24],[91,27],[104,30],[116,33],[70,34],[83,31],[96,35],[109,38],[122,36],[73,42],[86,40],[99,44],[113,42],[125,40]].map(([cx,cy],i)=>(
+            <circle key={`psp${i}`} cx={cx} cy={cy} r="2.2" fill="#ffddcc" opacity="0.75"/>
+          ))}
+        </g>
+        {/* white fin edges – characteristic */}
+        <path d="M22 41 C22 21 52 11 88 11 C118 11 143 23 150 41 C143 59 118 71 88 71 C52 71 22 61 22 41Z" fill="none" stroke="#3a5870" strokeWidth="0.5"/>
+        <path d="M56 11 C67 2 82 0 97 2 C107 4 115 9 113 13 C101 11 82 10 56 11Z" fill="#506878" stroke="#304858" strokeWidth="0.7"/>
+        <path d="M58 11 L62 3M70 10 L74 2M82 10 L85 2M94 10 L96 3M105 11 L108 5" stroke="#304858" strokeWidth="0.5" opacity="0.7"/>
+        {/* white leading edge on pectoral – diagnostic */}
+        <path d="M126 37 C136 29 150 32 151 39 C150 46 136 48 126 45Z" fill="#e87050" stroke="#ffffff" strokeWidth="1.2" opacity="0.9"/>
+        <path d="M126 37 L126 45" stroke="white" strokeWidth="1.5" opacity="0.8"/>
+        {/* ventral fins with white edge */}
+        <path d="M90 70 C86 79 79 81 77 75 C79 70 87 68 90 70Z" fill="#e87050" stroke="white" strokeWidth="1" opacity="0.9"/>
+        <path d="M72 70 C67 79 60 80 59 74 C61 69 69 67 72 70Z" fill="#e87050" stroke="white" strokeWidth="1" opacity="0.9"/>
+        <path d="M38 19 C32 13 27 16 29 22 C31 26 36 24 38 19Z" fill="#506878" stroke="#304858" strokeWidth="0.6"/>
+        <path d="M126 25 Q140 31 142 41 Q140 51 126 57" stroke="#4a6888" strokeWidth="1.5" fill="none" opacity="0.4"/>
+        <circle cx="143" cy="37" r="5.5" fill="#0a0808"/>
+        <circle cx="143" cy="37" r="4" fill="#1a1010"/>
+        <circle cx="144.5" cy="35.5" r="1.8" fill="white" opacity="0.9"/>
+        <path d="M150 39 Q156 41 153 44" stroke="#506878" strokeWidth="1.2" fill="none"/>
+        <path d="M150 43 Q156 41 153 38" stroke="#405868" strokeWidth="0.8" fill="none"/>
+      </svg>
+    ),
+
+    // ── BACHSAIBLING ─────────────────────────────────────────────────────────
+    brook: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="bk-body" x1="0" y1="0" x2="0" y2="83" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#3a5030"/>
+            <stop offset="45%" stopColor="#607850"/>
+            <stop offset="100%" stopColor="#d85030"/>
+          </linearGradient>
+          <linearGradient id="bk-worm" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#405030" stopOpacity="0"/>
+            <stop offset="30%" stopColor="#8aaa60" stopOpacity="0.7"/>
+            <stop offset="70%" stopColor="#8aaa60" stopOpacity="0.7"/>
+            <stop offset="100%" stopColor="#405030" stopOpacity="0"/>
+          </linearGradient>
+          <clipPath id="bk-clip">
+            <path d="M22 41 C22 21 52 11 88 11 C118 11 143 23 150 41 C143 59 118 71 88 71 C52 71 22 61 22 41Z"/>
+          </clipPath>
+        </defs>
+        <path d="M22 41 C12 27 3 20 6 41 C3 62 12 55 22 41Z" fill="#3a5030" stroke="#2a3820" strokeWidth="0.8"/>
+        <path d="M22 41 C22 21 52 11 88 11 C118 11 143 23 150 41 C143 59 118 71 88 71 C52 71 22 61 22 41Z" fill="url(#bk-body)"/>
+        {/* red-orange belly */}
+        <path d="M26 52 C44 69 72 72 100 68 C124 64 142 54 148 44 C136 57 114 69 86 69 C62 69 38 62 26 52Z" fill="#e05030" opacity="0.9"/>
+        <g clipPath="url(#bk-clip)">
+          {/* worm-like markings on back – characteristic of brook trout */}
+          {[35,50,65,80,95,110,125,138].map((x,i)=>(
+            <path key={`wm${i}`} d={`M${x} 20 Q${x+4} 25 ${x} 30 Q${x-4} 35 ${x} 40`} stroke="#6a9050" strokeWidth="2.5" fill="none" opacity="0.55"/>
+          ))}
+          {/* red spots with blue halos */}
+          {[[68,36],[80,32],[93,35],[106,39],[119,37],[72,44],[85,42],[98,46],[112,44],[126,42]].map(([cx,cy],i)=>(
+            <g key={`blh${i}`}>
+              <circle cx={cx} cy={cy} r="4" fill="#4488cc" opacity="0.4"/>
+              <circle cx={cx} cy={cy} r="2.5" fill="#ee2200" opacity="0.8"/>
+            </g>
+          ))}
+          {/* yellow spots */}
+          {[[74,28],[87,25],[100,27],[114,30],[128,28]].map(([cx,cy],i)=>(
+            <circle key={`ys${i}`} cx={cx} cy={cy} r="2" fill="#ffcc44" opacity="0.65"/>
+          ))}
+        </g>
+        <path d="M56 11 C67 2 82 0 97 2 C107 4 115 9 113 13 C101 11 82 10 56 11Z" fill="#507040" stroke="#304820" strokeWidth="0.7"/>
+        <path d="M57 11 L62 3M70 10 L74 2M82 10 L85 2M94 10 L96 3M105 11 L108 5" stroke="#304820" strokeWidth="0.5" opacity="0.7"/>
+        {/* white-edged fins */}
+        <path d="M126 37 C136 29 150 31 151 38 C150 45 136 47 126 45Z" fill="#e05030" stroke="white" strokeWidth="1.5" opacity="0.9"/>
+        <path d="M126 37 L126 45" stroke="white" strokeWidth="2" opacity="0.85"/>
+        <path d="M90 70 C86 79 79 81 77 75 C79 70 87 68 90 70Z" fill="#e05030" stroke="white" strokeWidth="1.2" opacity="0.9"/>
+        <path d="M72 70 C67 79 60 80 59 74 C61 69 69 67 72 70Z" fill="#e05030" stroke="white" strokeWidth="1.2" opacity="0.9"/>
+        <path d="M38 19 C32 13 27 16 29 22 C31 26 36 24 38 19Z" fill="#507040" stroke="#304820" strokeWidth="0.6"/>
+        <path d="M126 25 Q140 31 142 41 Q140 51 126 57" stroke="#507040" strokeWidth="1.5" fill="none" opacity="0.4"/>
+        <circle cx="143" cy="37" r="5.5" fill="#0a0a00"/>
+        <circle cx="143" cy="37" r="4" fill="#181800"/>
+        <circle cx="144.5" cy="35.5" r="1.8" fill="white" opacity="0.9"/>
+        <path d="M150 38 Q157 41 154 44" stroke="#506040" strokeWidth="1.2" fill="none"/>
+        <path d="M150 44 Q157 41 154 38" stroke="#405030" strokeWidth="0.8" fill="none"/>
+      </svg>
+    ),
+
+    // ── ÄSCHE ────────────────────────────────────────────────────────────────
+    grayling: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="gr-body" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#8898a8"/>
+            <stop offset="40%" stopColor="#b0c0d0"/>
+            <stop offset="70%" stopColor="#c8d8e8"/>
+            <stop offset="100%" stopColor="#90a0b0"/>
+          </linearGradient>
+          <linearGradient id="gr-dfin" x1="0" y1="0" x2="0" y2="40" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#9060c0"/>
+            <stop offset="50%" stopColor="#7050a0"/>
+            <stop offset="100%" stopColor="#9090b0"/>
+          </linearGradient>
+          <clipPath id="gr-clip">
+            <path d="M22 41 C22 22 52 12 86 12 C116 12 141 24 148 41 C141 58 116 70 86 70 C52 70 22 60 22 41Z"/>
+          </clipPath>
+        </defs>
+        <path d="M22 41 C12 28 3 21 6 41 C3 61 12 54 22 41Z" fill="#7888a0" stroke="#5878a0" strokeWidth="0.8"/>
+        <path d="M22 41 C22 22 52 12 86 12 C116 12 141 24 148 41 C141 58 116 70 86 70 C52 70 22 60 22 41Z" fill="url(#gr-body)"/>
+        {/* silvery belly */}
+        <path d="M26 51 C44 67 68 70 96 67 C120 63 138 54 146 44 C134 56 112 68 84 68 C60 68 38 60 26 51Z" fill="#e8f0f8" opacity="0.7"/>
+        {/* scales – fine and tight */}
+        <g clipPath="url(#gr-clip)" opacity="0.2">
+          {[35,48,61,74,87,100,113,126,138].map((x,i)=>[0,1,2].map(j=>(
+            <ellipse key={`${i}-${j}`} cx={x+(j*4)} cy={26+j*15} rx="6" ry="4" fill="none" stroke="#3050a0" strokeWidth="0.5"/>
+          )))}
+        </g>
+        {/* small dark spots on sides */}
+        {[[65,34],[76,30],[88,33],[100,36],[112,33],[68,40],[80,38],[92,41],[105,39],[118,37]].map(([cx,cy],i)=>(
+          <circle key={`gsp${i}`} cx={cx} cy={cy} r="1.2" fill="#202838" opacity="0.45"/>
+        ))}
+        {/* LARGE SAIL DORSAL FIN – most distinctive feature */}
+        <path d="M44 12 C52 -4 65 -8 78 -6 C90 -4 100 0 108 6 C114 10 118 14 116 16 C104 13 88 12 44 12Z" fill="url(#gr-dfin)" stroke="#6050a0" strokeWidth="0.8"/>
+        {/* fin rays with spots */}
+        <path d="M46 12 L50 -3M55 11 L58 -5M64 11 L66 -7M73 11 L75 -7M82 11 L84 -5M91 11 L93 -2M100 11 L103 3M109 12 L112 8" stroke="#5040a0" strokeWidth="0.6" opacity="0.7"/>
+        {/* purple-red spots on dorsal */}
+        {[[52,-1],[62,-4],[72,-5],[82,-4],[92,-2]].map(([cx,cy],i)=>(
+          <circle key={`ds${i}`} cx={cx} cy={cy} r="2" fill="#cc4488" opacity="0.6"/>
+        ))}
+        {/* iridescent sheen */}
+        <path d="M44 12 C52 -4 65 -8 78 -6 C90 -4 100 0 108 6 C114 10 118 14 116 16 C104 13 88 12 44 12Z" fill="#b090e0" opacity="0.2"/>
+        <path d="M38 19 C32 13 27 16 29 22 C31 26 36 24 38 19Z" fill="#9090b0" stroke="#6878a0" strokeWidth="0.6"/>
+        <path d="M124 37 C134 30 146 32 147 39 C146 46 134 48 124 45Z" fill="#b0c0d0" stroke="#8090a8" strokeWidth="0.7" opacity="0.85"/>
+        <path d="M88 69 C84 78 77 80 75 74 C77 69 85 67 88 69Z" fill="#b0c0d0" stroke="#8090a8" strokeWidth="0.6"/>
+        <path d="M70 69 C65 78 58 79 57 73 C59 68 67 66 70 69Z" fill="#b0c0d0" stroke="#8090a8" strokeWidth="0.6"/>
+        <path d="M124 26 Q138 32 140 41 Q138 50 124 56" stroke="#7888a0" strokeWidth="1.5" fill="none" opacity="0.4"/>
+        <circle cx="140" cy="37" r="5" fill="#0a0808"/>
+        <circle cx="140" cy="37" r="3.5" fill="#181810"/>
+        <circle cx="141.5" cy="35.5" r="1.5" fill="white" opacity="0.9"/>
+        <path d="M146 39 Q152 41 149 44" stroke="#608090" strokeWidth="1.2" fill="none"/>
+        <path d="M146 43 Q152 41 149 38" stroke="#507080" strokeWidth="0.8" fill="none"/>
+      </svg>
+    ),
+
+    // ── HECHT ────────────────────────────────────────────────────────────────
+    pike: (
+      <svg width={w} height={h} viewBox="0 0 180 75" fill="none">
+        <defs>
+          <linearGradient id="pk-body" x1="0" y1="0" x2="180" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#4a6038"/>
+            <stop offset="30%" stopColor="#6a8850"/>
+            <stop offset="55%" stopColor="#7a9860"/>
+            <stop offset="80%" stopColor="#88a068"/>
+            <stop offset="100%" stopColor="#607848"/>
+          </linearGradient>
+          <clipPath id="pk-clip">
+            <path d="M10 37 C10 18 40 8 100 8 C145 8 168 20 174 37 C168 54 145 66 100 66 C40 66 10 56 10 37Z"/>
+          </clipPath>
+        </defs>
+        {/* elongated tail */}
+        <path d="M10 37 C-2 22 -4 15 1 37 C-4 59 -2 52 10 37Z" fill="#4a6038" stroke="#3a5028" strokeWidth="0.8"/>
+        {/* very elongated body */}
+        <path d="M10 37 C10 18 40 8 100 8 C145 8 168 20 174 37 C168 54 145 66 100 66 C40 66 10 56 10 37Z" fill="url(#pk-body)"/>
+        {/* cream/white belly */}
+        <path d="M14 47 C40 62 75 66 108 62 C135 58 158 49 172 40 C158 52 134 64 100 64 C68 64 38 56 14 47Z" fill="#d8e8c0" opacity="0.75"/>
+        <g clipPath="url(#pk-clip)">
+          {/* dark vertical bars / mottled pattern */}
+          {[25,40,55,70,85,100,115,130,148,163].map((x,i)=>(
+            <path key={`pkb${i}`} d={`M${x} 15 C${x+3} 22 ${x+2} 30 ${x} 37 C${x-2} 44 ${x-3} 52 ${x} 60`}
+              stroke="#2a3820" strokeWidth={i % 2 === 0 ? 4 : 2.5} fill="none" opacity="0.35"/>
+          ))}
+          {/* lighter spots */}
+          {[[30,25],[45,22],[60,24],[75,27],[90,25],[105,23],[120,25],[135,28],[150,26],[165,24]].map(([cx,cy],i)=>(
+            <ellipse key={`pks${i}`} cx={cx} cy={cy} rx="4" ry="2.5" fill="#c8d8a0" opacity="0.35"/>
+          ))}
+        </g>
+        {/* dorsal fin set far back – characteristic */}
+        <path d="M118 8 C128 0 140 -2 154 0 C162 2 168 7 166 12 C158 9 142 8 118 8Z" fill="#5a7848" stroke="#3a5828" strokeWidth="0.8"/>
+        <path d="M120 8 L124 1M130 7 L133 -1M140 7 L143 -1M150 7 L153 0M160 8 L163 4" stroke="#3a5828" strokeWidth="0.5" opacity="0.7"/>
+        {/* anal fin also set far back */}
+        <path d="M116 64 C122 72 130 73 132 67 C130 62 122 61 116 64Z" fill="#5a7848" stroke="#3a5828" strokeWidth="0.6"/>
+        {/* pec fin */}
+        <path d="M148 32 C158 25 170 27 172 34 C170 41 158 43 148 40Z" fill="#7a9860" stroke="#4a6838" strokeWidth="0.7" opacity="0.85"/>
+        {/* ventral fin */}
+        <path d="M105 64 C101 72 94 74 92 68 C94 63 102 61 105 64Z" fill="#7a9860" stroke="#4a6838" strokeWidth="0.6"/>
+        {/* duck-bill snout */}
+        <path d="M170 28 Q182 30 180 37 Q182 44 170 46" fill="#6a8850" stroke="#4a6030" strokeWidth="0.8"/>
+        {/* large eye */}
+        <circle cx="168" cy="32" r="5.5" fill="#0a1208"/>
+        <circle cx="168" cy="32" r="4" fill="#1a2210"/>
+        <circle cx="169.5" cy="30.5" r="1.8" fill="white" opacity="0.9"/>
+        {/* tooth line */}
+        <path d="M174 36 Q180 37 177 40" stroke="#4a6030" strokeWidth="1.5" fill="none"/>
+        <path d="M174 38 Q180 37 177 35" stroke="#3a5020" strokeWidth="1" fill="none"/>
+        <path d="M148 20 Q163 26 166 37 Q163 48 148 54" stroke="#607848" strokeWidth="1.5" fill="none" opacity="0.4"/>
+      </svg>
+    ),
+
+    // ── FLUSSBARSCH ──────────────────────────────────────────────────────────
+    perch: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="pe-body" x1="0" y1="0" x2="0" y2="83" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#4a7828"/>
+            <stop offset="45%" stopColor="#78b040"/>
+            <stop offset="100%" stopColor="#e8d058"/>
+          </linearGradient>
+          <clipPath id="pe-clip">
+            <path d="M20 41 C20 20 50 10 88 10 C120 10 145 23 152 41 C145 59 120 72 88 72 C50 72 20 62 20 41Z"/>
+          </clipPath>
+        </defs>
+        <path d="M20 41 C10 27 2 20 5 41 C2 62 10 55 20 41Z" fill="#4a7828" stroke="#305818" strokeWidth="0.8"/>
+        <path d="M20 41 C20 20 50 10 88 10 C120 10 145 23 152 41 C145 59 120 72 88 72 C50 72 20 62 20 41Z" fill="url(#pe-body)"/>
+        {/* yellow-white belly */}
+        <path d="M24 51 C42 67 68 72 98 68 C122 64 140 54 150 43 C138 56 116 70 86 70 C62 70 38 61 24 51Z" fill="#f0e870" opacity="0.55"/>
+        <g clipPath="url(#pe-clip)">
+          {/* 6-7 dark vertical bars – most diagnostic feature */}
+          {[38,54,68,82,96,110,124].map((x,i)=>(
+            <rect key={`vb${i}`} x={x-4} y={10} width={8} height={62} fill="#1a3010" opacity="0.45" rx="2"/>
+          ))}
+        </g>
+        {/* spiny dorsal fin – two parts */}
+        <path d="M44 10 C50 1 64 -2 78 0 C86 1 90 6 88 10 C78 9 62 9 44 10Z" fill="#2a6018" stroke="#1a4808" strokeWidth="0.8"/>
+        <path d="M46 10 L49 2M54 9 L57 1M62 9 L65 0M70 9 L73 -1M78 9 L81 1M86 10 L87 5" stroke="#1a4808" strokeWidth="0.7" opacity="0.8"/>
+        {/* spines visible */}
+        {[50,58,66,74,82].map((x,i)=>(
+          <line key={`sp${i}`} x1={x} y1={10} x2={x-1} y2={i===2?-1:i<2?2:1} stroke="#0a2808" strokeWidth="0.8"/>
+        ))}
+        {/* soft dorsal fin */}
+        <path d="M90 10 C98 3 108 1 118 3 C126 5 132 9 130 13 C122 11 108 10 90 10Z" fill="#4a8828" stroke="#2a5818" strokeWidth="0.7"/>
+        <path d="M92 10 L95 4M100 9 L103 3M108 9 L111 3M117 10 L119 4M125 11 L127 6" stroke="#2a5818" strokeWidth="0.5" opacity="0.7"/>
+        {/* pec fin orange-tinged */}
+        <path d="M128 37 C138 30 150 32 151 39 C150 46 138 48 128 45Z" fill="#e8a030" stroke="#b07820" strokeWidth="0.7" opacity="0.85"/>
+        {/* ventral fins orange */}
+        <path d="M90 71 C86 80 79 82 77 76 C79 71 87 69 90 71Z" fill="#e87030" stroke="#b05020" strokeWidth="0.7"/>
+        <path d="M72 71 C67 80 60 81 59 75 C61 70 69 68 72 71Z" fill="#e87030" stroke="#b05020" strokeWidth="0.7"/>
+        {/* anal fin with first spine */}
+        <path d="M55 72 C50 80 44 80 43 74 C45 70 52 69 55 72Z" fill="#e87030" stroke="#b05020" strokeWidth="0.7"/>
+        {/* gill cover with spine */}
+        <path d="M126 25 Q140 31 142 41 Q140 51 126 57" stroke="#2a6018" strokeWidth="2" fill="none" opacity="0.5"/>
+        <path d="M126 57 Q122 60 120 58" stroke="#1a4808" strokeWidth="1.2" fill="none"/>
+        <circle cx="143" cy="36" r="5.5" fill="#0a0800"/>
+        <circle cx="143" cy="36" r="4" fill="#181000"/>
+        <circle cx="144.5" cy="34.5" r="1.8" fill="white" opacity="0.9"/>
+        <path d="M150 38 Q157 40 154 43" stroke="#4a7828" strokeWidth="1.2" fill="none"/>
+        <path d="M150 42 Q157 40 154 37" stroke="#3a6018" strokeWidth="0.8" fill="none"/>
+      </svg>
+    ),
+
+    // ── ROTAUGE ──────────────────────────────────────────────────────────────
+    roach: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="ro-body" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#7888a8"/>
+            <stop offset="40%" stopColor="#a0b0c8"/>
+            <stop offset="70%" stopColor="#c0cce0"/>
+            <stop offset="100%" stopColor="#8898b8"/>
+          </linearGradient>
+          <clipPath id="ro-clip">
+            <path d="M22 41 C22 22 50 12 86 12 C116 12 140 24 147 41 C140 58 116 70 86 70 C50 70 22 60 22 41Z"/>
+          </clipPath>
+        </defs>
+        <path d="M22 41 C12 28 3 21 6 41 C3 61 12 54 22 41Z" fill="#6878a8" stroke="#4858a0" strokeWidth="0.8"/>
+        <path d="M22 41 C22 22 50 12 86 12 C116 12 140 24 147 41 C140 58 116 70 86 70 C50 70 22 60 22 41Z" fill="url(#ro-body)"/>
+        {/* bright silver belly */}
+        <path d="M26 51 C44 67 68 70 96 66 C120 62 138 52 145 42 C133 55 110 68 84 68 C60 68 36 60 26 51Z" fill="#e8f0ff" opacity="0.75"/>
+        {/* scales – prominent in roach */}
+        <g clipPath="url(#ro-clip)" opacity="0.3">
+          {[35,48,61,74,87,100,113,126,138].map((x,i)=>[0,1,2].map(j=>(
+            <ellipse key={`${i}-${j}`} cx={x+(j*5)} cy={25+j*15} rx="7" ry="5" fill="none" stroke="#2040a0" strokeWidth="0.7"/>
+          )))}
+        </g>
+        {/* dorsal fin */}
+        <path d="M66 12 C74 4 86 2 97 4 C105 6 110 11 108 14 C98 12 82 12 66 12Z" fill="#8898b8" stroke="#5878b0" strokeWidth="0.7"/>
+        <path d="M68 12 L72 4M78 11 L81 3M87 11 L90 3M96 11 L98 5M105 12 L107 7" stroke="#4868a8" strokeWidth="0.5" opacity="0.7"/>
+        {/* red pectoral fin */}
+        <path d="M124 37 C134 30 146 32 147 39 C146 46 134 48 124 45Z" fill="#dd3322" stroke="#aa1800" strokeWidth="0.8" opacity="0.9"/>
+        {/* red ventral fins */}
+        <path d="M88 69 C84 78 77 80 75 74 C77 69 85 67 88 69Z" fill="#dd3322" stroke="#aa1800" strokeWidth="0.7"/>
+        <path d="M70 69 C65 78 58 79 57 73 C59 68 67 66 70 69Z" fill="#dd3322" stroke="#aa1800" strokeWidth="0.7"/>
+        {/* red anal fin */}
+        <path d="M52 69 C47 78 40 78 39 72 C41 68 50 66 52 69Z" fill="#dd3322" stroke="#aa1800" strokeWidth="0.7"/>
+        {/* tail red tinge */}
+        <path d="M22 41 C12 28 3 21 6 41 C3 61 12 54 22 41Z" fill="#dd3322" opacity="0.25"/>
+        <path d="M122 26 Q136 32 138 41 Q136 50 122 56" stroke="#6878a8" strokeWidth="1.5" fill="none" opacity="0.4"/>
+        {/* RED EYE – most diagnostic */}
+        <circle cx="139" cy="37" r="6" fill="#cc1100"/>
+        <circle cx="139" cy="37" r="4.5" fill="#dd2200"/>
+        <circle cx="139" cy="37" r="2.5" fill="#0a0800"/>
+        <circle cx="140" cy="35.8" r="1.2" fill="white" opacity="0.9"/>
+        <path d="M146 39 Q152 41 149 44" stroke="#6878a8" strokeWidth="1.2" fill="none"/>
+        <path d="M146 43 Q152 41 149 38" stroke="#5868a8" strokeWidth="0.8" fill="none"/>
+      </svg>
+    ),
+
+    // ── ROTFEDER ─────────────────────────────────────────────────────────────
+    rudd: (
+      <svg width={w} height={h} viewBox="0 0 160 83" fill="none">
+        <defs>
+          <linearGradient id="rd-body" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#c89040"/>
+            <stop offset="40%" stopColor="#e8b860"/>
+            <stop offset="65%" stopColor="#f0c870"/>
+            <stop offset="100%" stopColor="#d0a050"/>
+          </linearGradient>
+          <clipPath id="rd-clip">
+            <path d="M22 41 C22 22 50 12 84 12 C114 12 138 24 145 41 C138 58 114 70 84 70 C50 70 22 60 22 41Z"/>
+          </clipPath>
+        </defs>
+        <path d="M22 41 C12 28 3 21 6 41 C3 61 12 54 22 41Z" fill="#b88030" stroke="#906020" strokeWidth="0.8"/>
+        <path d="M22 41 C22 22 50 12 84 12 C114 12 138 24 145 41 C138 58 114 70 84 70 C50 70 22 60 22 41Z" fill="url(#rd-body)"/>
+        {/* white-golden belly */}
+        <path d="M26 51 C44 67 68 70 96 66 C118 62 136 52 143 42 C131 55 108 68 82 68 C58 68 36 60 26 51Z" fill="#fff8e0" opacity="0.7"/>
+        {/* scales */}
+        <g clipPath="url(#rd-clip)" opacity="0.25">
+          {[35,48,61,74,87,100,113,126].map((x,i)=>[0,1,2].map(j=>(
+            <ellipse key={`${i}-${j}`} cx={x+(j*5)} cy={25+j*15} rx="7" ry="5" fill="none" stroke="#806020" strokeWidth="0.7"/>
+          )))}
+        </g>
+        {/* dorsal fin set further back than roach – diagnostic */}
+        <path d="M76 12 C84 4 96 2 106 4 C114 6 119 11 117 14 C107 12 92 12 76 12Z" fill="#d09040" stroke="#a06820" strokeWidth="0.7"/>
+        <path d="M78 12 L82 4M88 11 L91 3M97 11 L100 3M107 11 L109 5M114 12 L116 7" stroke="#906030" strokeWidth="0.5" opacity="0.7"/>
+        {/* bright red fins */}
+        <path d="M124 37 C134 29 146 31 147 38 C146 45 134 47 124 44Z" fill="#ee2200" stroke="#cc0000" strokeWidth="0.9" opacity="0.95"/>
+        <path d="M86 69 C82 78 75 80 73 74 C75 69 83 67 86 69Z" fill="#ee2200" stroke="#cc0000" strokeWidth="0.8"/>
+        <path d="M68 69 C63 78 56 79 55 73 C57 68 65 66 68 69Z" fill="#ee2200" stroke="#cc0000" strokeWidth="0.8"/>
+        <path d="M50 69 C45 78 38 78 37 72 C39 68 48 66 50 69Z" fill="#ee2200" stroke="#cc0000" strokeWidth="0.8"/>
+        {/* tail also red */}
+        <path d="M22 41 C12 28 3 21 6 41 C3 61 12 54 22 41Z" fill="#ee2200" opacity="0.4"/>
+        <path d="M122 26 Q136 32 138 41 Q136 50 122 56" stroke="#c09040" strokeWidth="1.5" fill="none" opacity="0.4"/>
+        {/* red-orange eye */}
+        <circle cx="137" cy="37" r="6" fill="#ee4400"/>
+        <circle cx="137" cy="37" r="4.5" fill="#ff5500"/>
+        <circle cx="137" cy="37" r="2.5" fill="#0a0800"/>
+        <circle cx="138" cy="35.8" r="1.2" fill="white" opacity="0.9"/>
+        {/* upturned mouth – diagnostic difference from roach */}
+        <path d="M144 41 Q150 38 148 35" stroke="#c09040" strokeWidth="1.3" fill="none"/>
+        <path d="M144 41 Q150 44 148 47" stroke="#b08030" strokeWidth="0.9" fill="none"/>
+      </svg>
+    ),
+
+    // ── KARAUSCHE ────────────────────────────────────────────────────────────
+    crucian: (
+      <svg width={w} height={h} viewBox="0 0 160 90" fill="none">
+        <defs>
+          <linearGradient id="cr-body" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#b08020"/>
+            <stop offset="35%" stopColor="#d8a838"/>
+            <stop offset="65%" stopColor="#e8bc50"/>
+            <stop offset="100%" stopColor="#c09030"/>
+          </linearGradient>
+          <clipPath id="cr-clip">
+            <path d="M28 45 C28 22 56 10 88 10 C118 10 142 24 148 45 C142 66 118 80 88 80 C56 80 28 68 28 45Z"/>
+          </clipPath>
+        </defs>
+        {/* small rounded tail */}
+        <path d="M28 45 C18 32 10 25 13 45 C10 65 18 58 28 45Z" fill="#a07020" stroke="#805010" strokeWidth="0.8"/>
+        {/* deep, rounded body – diagnostic */}
+        <path d="M28 45 C28 22 56 10 88 10 C118 10 142 24 148 45 C142 66 118 80 88 80 C56 80 28 68 28 45Z" fill="url(#cr-body)"/>
+        {/* belly */}
+        <path d="M32 56 C50 72 70 80 96 76 C118 72 136 62 146 50 C134 62 114 78 86 78 C62 78 40 68 32 56Z" fill="#f8e898" opacity="0.65"/>
+        {/* scales – large and well-defined */}
+        <g clipPath="url(#cr-clip)" opacity="0.3">
+          {[40,54,68,82,96,110,124,137].map((x,i)=>[0,1,2].map(j=>(
+            <ellipse key={`${i}-${j}`} cx={x+(j*6)} cy={26+j*18} rx="9" ry="6" fill="none" stroke="#806010" strokeWidth="0.8"/>
+          )))}
+        </g>
+        {/* tall arched dorsal fin */}
+        <path d="M52 10 C60 0 75 -3 90 -1 C103 1 115 7 114 12 C102 10 78 9 52 10Z" fill="#c09030" stroke="#806010" strokeWidth="0.8"/>
+        <path d="M54 10 L58 1M65 9 L68 0M75 9 L78 -2M86 9 L89 -1M97 9 L100 2M108 10 L111 6" stroke="#806010" strokeWidth="0.6" opacity="0.7"/>
+        {/* pectoral fin */}
+        <path d="M130 40 C140 33 152 35 153 42 C152 49 140 51 130 48Z" fill="#d0a030" stroke="#906820" strokeWidth="0.7" opacity="0.85"/>
+        {/* rounded ventral fins */}
+        <path d="M92 79 C87 88 79 90 77 83 C79 78 88 76 92 79Z" fill="#d0a030" stroke="#906820" strokeWidth="0.6"/>
+        <path d="M74 79 C68 88 60 89 59 82 C61 77 70 75 74 79Z" fill="#d0a030" stroke="#906820" strokeWidth="0.6"/>
+        <path d="M128 28 Q142 35 144 45 Q142 55 128 62" stroke="#b08020" strokeWidth="1.5" fill="none" opacity="0.4"/>
+        <circle cx="142" cy="40" r="5.5" fill="#0a0800"/>
+        <circle cx="142" cy="40" r="4" fill="#1a1000"/>
+        <circle cx="143.5" cy="38.5" r="1.5" fill="white" opacity="0.9"/>
+        <path d="M148 42 Q154 44 151 48" stroke="#906820" strokeWidth="1.2" fill="none"/>
+        <path d="M148 47 Q154 44 151 41" stroke="#806010" strokeWidth="0.8" fill="none"/>
+      </svg>
+    ),
+
+    // ── KARPFEN ──────────────────────────────────────────────────────────────
+    carp: (
+      <svg width={w} height={h} viewBox="0 0 170 90" fill="none">
+        <defs>
+          <linearGradient id="cp-body" x1="0" y1="0" x2="170" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#9a7828"/>
+            <stop offset="30%" stopColor="#c8a040"/>
+            <stop offset="60%" stopColor="#d8b050"/>
+            <stop offset="100%" stopColor="#aa8830"/>
+          </linearGradient>
+          <linearGradient id="cp-belly" x1="0" y1="50" x2="0" y2="82" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#e8d090"/>
+            <stop offset="100%" stopColor="#f8e8b0"/>
+          </linearGradient>
+          <clipPath id="cp-clip">
+            <path d="M20 45 C20 22 52 10 94 10 C130 10 158 24 165 45 C158 66 130 80 94 80 C52 80 20 68 20 45Z"/>
+          </clipPath>
+        </defs>
+        {/* broad tail */}
+        <path d="M20 45 C8 30 0 22 4 45 C0 68 8 60 20 45Z" fill="#8a6820" stroke="#6a5010" strokeWidth="0.9"/>
+        {/* heavy, deep body */}
+        <path d="M20 45 C20 22 52 10 94 10 C130 10 158 24 165 45 C158 66 130 80 94 80 C52 80 20 68 20 45Z" fill="url(#cp-body)"/>
+        {/* belly */}
+        <path d="M24 57 C44 74 72 80 104 76 C130 72 150 61 163 48 C150 62 128 78 92 78 C66 78 42 68 24 57Z" fill="url(#cp-belly)" opacity="0.8"/>
+        {/* large scales – very prominent */}
+        <g clipPath="url(#cp-clip)" opacity="0.35">
+          {[36,52,68,84,100,116,132,148].map((x,i)=>[0,1,2].map(j=>(
+            <ellipse key={`${i}-${j}`} cx={x+(j*7)} cy={25+j*20} rx="10" ry="7" fill="none" stroke="#6a4808" strokeWidth="0.9"/>
+          )))}
+          {[44,60,76,92,108,124,140].map((x,i)=>(
+            <ellipse key={`cm${i}`} cx={x} cy={45} rx="10" ry="7" fill="none" stroke="#6a4808" strokeWidth="0.9"/>
+          ))}
+        </g>
+        {/* dorsal fin – long */}
+        <path d="M54 10 C65 1 82 -1 100 1 C116 3 130 9 128 14 C114 11 90 10 54 10Z" fill="#b08828" stroke="#7a5808" strokeWidth="0.8"/>
+        <path d="M56 10 L60 2M68 9 L71 1M78 9 L81 1M88 9 L91 1M98 9 L101 2M110 10 L113 4M120 11 L123 6" stroke="#7a5808" strokeWidth="0.6" opacity="0.7"/>
+        {/* barbels – characteristic */}
+        <path d="M158 47 Q163 50 162 55" stroke="#a07820" strokeWidth="1.2" fill="none"/>
+        <path d="M158 47 Q165 46 164 42" stroke="#a07820" strokeWidth="1.2" fill="none"/>
+        {/* thick pectoral fin */}
+        <path d="M138 40 C150 32 163 34 165 42 C163 50 150 52 138 49Z" fill="#c09030" stroke="#806010" strokeWidth="0.8" opacity="0.9"/>
+        {/* ventral fins */}
+        <path d="M98 79 C93 88 85 90 83 83 C85 78 94 76 98 79Z" fill="#c09030" stroke="#806010" strokeWidth="0.7"/>
+        <path d="M78 79 C72 88 64 89 63 82 C65 77 74 75 78 79Z" fill="#c09030" stroke="#806010" strokeWidth="0.7"/>
+        {/* anal fin */}
+        <path d="M58 78 C52 87 44 87 43 80 C45 76 55 74 58 78Z" fill="#c09030" stroke="#806010" strokeWidth="0.7"/>
+        <path d="M135 27 Q151 34 154 45 Q151 56 135 63" stroke="#b08828" strokeWidth="2" fill="none" opacity="0.4"/>
+        <circle cx="156" cy="40" r="6" fill="#0a0800"/>
+        <circle cx="156" cy="40" r="4.5" fill="#1a1000"/>
+        <circle cx="157.5" cy="38.5" r="1.8" fill="white" opacity="0.9"/>
+        {/* thick fleshy lips */}
+        <path d="M163 43 Q170 45 167 49" stroke="#906820" strokeWidth="1.5" fill="none"/>
+        <path d="M163 47 Q170 45 167 41" stroke="#806010" strokeWidth="1.2" fill="none"/>
+      </svg>
+    ),
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {fishes[type] || fishes.brown}
+    </div>
+  );
+}
+
+// ─── STATUS BADGE ──────────────────────────────────────────────────────────────
+function StatusBadge({ status, size = "sm" }) {
+  const cfg = STATUS_CONFIG[status];
+  const isLg = size === "lg";
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: isLg ? 6 : 4,
+      padding: isLg ? "5px 12px" : "3px 8px",
+      borderRadius: 20, fontSize: isLg ? 13 : 11, fontWeight: 700,
+      background: cfg.bg, color: cfg.text,
+      border: `1px solid ${cfg.borderColor}`,
+      fontFamily: "'Crimson Pro', Georgia, serif", letterSpacing: "0.03em"
+    }}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
+}
+
+
+// ─── ULTRA-REALISTIC FISH SVGs ─────────────────────────────────────────────────
+
+// ─── ULTRA-REALISTIC FISH ILLUSTRATIONS ────────────────────────────────────────
+// Style reference: naturalistic field-guide illustration
+// Each fish has: volumetric body shading, realistic fin anatomy, species-accurate
+// coloring, scale texture, specular highlights, detailed eyes, correct proportions
+
+// ─── ULTRA-REALISTIC FISH ILLUSTRATIONS v3 ─────────────────────────────────────
+// Based on real fish proportions researched from scientific illustrations:
+// - Salmonids (trout/char): slender, body depth ~18-22% of length
+// - Pike: extremely elongated, depth ~12-15% of length  
+// - Perch: moderately deep, depth ~28-32% of length
+// - Carp/Crucian: deep-bodied, depth ~38-45% of length
+// - Grayling: moderate depth, massive dorsal fin
+// All fish face RIGHT, viewBox tuned per species for correct aspect ratio
+
+function FishUltra({ type, size = 120 }) {
+  const w = size;
+
+  // Each species has its own aspect ratio based on real proportions
+  const aspects = {
+    rainbow: 0.36, brown: 0.36, marble: 0.38, lake: 0.34,
+    arctic: 0.36, brook: 0.36, grayling: 0.44,
+    pike: 0.22, perch: 0.46, roach: 0.40, rudd: 0.42,
+    crucian: 0.52, carp: 0.48,
+  };
+  const h = Math.round(w * (aspects[type] || 0.38));
+
+  const svgs = {
+
+// ══════════════════════════════════════════════════════════════════════════════
+// REGENBOGENFORELLE – Oncorhynchus mykiss
+// Slender salmonid. Steel-blue/olive back → silver sides → white belly.
+// Vivid pink-magenta lateral band. Dense black spots all over. Forked tail.
+// ══════════════════════════════════════════════════════════════════════════════
+rainbow: (<svg width={w} height={h} viewBox="0 0 420 152" fill="none">
+<defs>
+  <linearGradient id="A0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#3a5c6e"/>
+    <stop offset="28%" stopColor="#6a9aaa"/>
+    <stop offset="55%" stopColor="#9ec4d0"/>
+    <stop offset="78%" stopColor="#cce4ec"/>
+    <stop offset="100%" stopColor="#f0faff"/>
+  </linearGradient>
+  <linearGradient id="A1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#3a5c6e"/>
+    <stop offset="15%" stopColor="#5a8090"/>
+    <stop offset="100%" stopColor="#4a7080"/>
+  </linearGradient>
+  <radialGradient id="A2" cx="50%" cy="35%" r="55%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.38"/>
+    <stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="A3"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#1a3040" floodOpacity="0.35"/></filter>
+  <clipPath id="A4">
+    <path d="M58 76 C58 40 110 14 210 10 C300 6 380 30 400 76 C380 122 300 142 210 138 C110 134 58 112 58 76Z"/>
+  </clipPath>
+</defs>
+{/* tail – forked, proportionate */}
+<path d="M58 76 C38 52 18 40 26 76 C18 112 38 100 58 76Z" fill="url(#A1)"/>
+<path d="M26 76 L52 58M26 76 L52 76M26 76 L52 94" stroke="#3a5c6e" strokeWidth="0.8" opacity="0.5"/>
+{/* body */}
+<path d="M58 76 C58 40 110 14 210 10 C300 6 380 30 400 76 C380 122 300 142 210 138 C110 134 58 112 58 76Z"
+  fill="url(#A0)" filter="url(#A3)"/>
+{/* dark back stripe */}
+<path d="M60 52 C106 22 158 14 210 10 C280 6 348 22 396 52 C350 28 284 16 210 16 C152 16 98 34 60 52Z"
+  fill="#2a4050" opacity="0.65"/>
+{/* white belly */}
+<path d="M62 100 C106 130 158 140 210 138 C270 136 334 122 398 100 C346 122 280 136 210 134 C152 132 98 118 62 100Z"
+  fill="#f4faff" opacity="0.7"/>
+{/* PINK LATERAL BAND – layered soft glow */}
+<path d="M60 74 Q150 60 230 64 Q320 68 398 78" stroke="#c83890" strokeWidth="18" fill="none" opacity="0.09" strokeLinecap="round" filter="url(#A3)"/>
+<path d="M60 74 Q150 60 230 64 Q320 68 398 78" stroke="#d84898" strokeWidth="10" fill="none" opacity="0.22" strokeLinecap="round"/>
+<path d="M60 74 Q150 60 230 64 Q320 68 398 78" stroke="#e860a8" strokeWidth="5" fill="none" opacity="0.45" strokeLinecap="round"/>
+<path d="M60 73 Q150 59 230 63 Q320 67 398 77" stroke="#ffb0d8" strokeWidth="1.8" fill="none" opacity="0.6" strokeLinecap="round"/>
+{/* scale texture */}
+<g clipPath="url(#A4)" opacity="0.1">
+  {[90,112,134,156,178,200,222,244,266,288,308,326,344,362,380].map((x,i)=>
+    [-1,0,1].map(r=><ellipse key={`ra${i}${r}`} cx={x+r*11} cy={36+r*26} rx="12" ry="8" fill="none" stroke="#1848a0" strokeWidth="0.7"/>)
+  )}
+</g>
+{/* BLACK SPOTS – scattered upper half and along lateral band */}
+{[
+  [138,28],[158,22],[178,24],[198,28],[218,24],[238,26],[258,30],[276,26],[294,30],[310,28],[326,32],[342,28],[358,32],[374,34],
+  [144,40],[164,34],[184,36],[204,38],[224,36],[244,38],[264,40],[282,38],[300,40],[316,38],[332,42],[348,38],[364,42],[380,40],
+  [150,52],[170,46],[190,48],[210,50],[230,48],[250,50],[268,52],[286,50],[304,52],[320,50],[338,54],[354,50],[370,54],
+  [158,64],[178,58],[198,60],[218,62],[238,60],[256,64],[274,62],[292,64],[308,62],[326,66],[342,62],[360,66],[376,62],
+  [166,76],[186,70],[206,72],[226,74],[244,72],[264,76],[280,74],[298,76],[314,74],[332,78],[350,74],[368,76],
+  [174,88],[194,84],[214,86],[232,84],[252,88],[270,86],[288,88],[306,86],[324,88],[342,86]
+].map(([cx,cy],i)=>(
+  <circle key={`rbs${i}`} cx={cx} cy={cy} r="3.2" fill="#0c0c18" opacity="0.72"/>
+))}
+{/* DORSAL FIN – olive-grey, spotted */}
+<path d="M170 10 C188 0 208 -5 228 -3 C246 -1 260 5 258 12 C244 9 218 9 170 10Z"
+  fill="#607060" stroke="#3a4830" strokeWidth="0.8"/>
+<path d="M172 10 L178 0M188 9 L193 -3M202 9 L207 -5M217 9 L221 -3M232 9 L236 1M246 9 L250 5"
+  stroke="#3a4830" strokeWidth="0.7" opacity="0.6"/>
+{[180,194,208,222,238].map((cx,i)=><circle key={`rds${i}`} cx={cx} cy={i===2?-2:i===1||i===3?2:5} r="2.4" fill="#0c0c18" opacity="0.5"/>)}
+{/* adipose fin */}
+<path d="M98 22 C88 12 76 14 79 24 C81 30 92 28 98 22Z" fill="#607060" stroke="#3a4830" strokeWidth="0.7"/>
+{/* pectoral fin */}
+<path d="M348 80 C366 68 390 72 392 82 C390 94 366 98 348 92Z" fill="#c8b880" stroke="#9a9060" strokeWidth="0.8" opacity="0.85"/>
+<path d="M348 80 L374 70M348 86 L386 82M348 92 L374 98" stroke="#9a9060" strokeWidth="0.5" opacity="0.5"/>
+{/* ventral fin */}
+<path d="M252 136 C246 150 234 154 231 144 C234 134 246 132 252 136Z" fill="#c8b880" stroke="#9a9060" strokeWidth="0.7"/>
+<path d="M222 136 C215 150 203 152 201 142 C204 132 216 130 222 136Z" fill="#c8b880" stroke="#9a9060" strokeWidth="0.7"/>
+{/* specular highlight */}
+<path d="M58 76 C58 40 110 14 210 10 C300 6 380 30 400 76 C380 122 300 142 210 138 C110 134 58 112 58 76Z" fill="url(#A2)"/>
+{/* gill arc */}
+<path d="M334 40 Q366 58 368 76 Q366 94 334 112" stroke="#4a7080" strokeWidth="2" fill="none" opacity="0.4"/>
+{/* eye */}
+<circle cx="388" cy="70" r="12" fill="#0a1520"/><circle cx="388" cy="70" r="9.5" fill="#1a3040"/><circle cx="388" cy="70" r="6" fill="#0a0a14"/><circle cx="388" cy="70" r="3.5" fill="#050510"/>
+<circle cx="388" cy="70" r="8.5" fill="none" stroke="#3a6080" strokeWidth="1.2" opacity="0.55"/>
+<circle cx="392" cy="65" r="3.5" fill="white" opacity="0.9"/><circle cx="393.5" cy="63.5" r="1.2" fill="white" opacity="0.6"/>
+{/* mouth */}
+<path d="M400 73 Q416 77 413 84" stroke="#3a6070" strokeWidth="1.8" fill="none"/>
+<path d="M400 79 Q416 77 413 70" stroke="#2a5060" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BACHFORELLE – Salmo trutta fario
+// Olive-brown back, golden flanks, RED spots with pale cream halos, black spots.
+// Slightly more robust than rainbow. Small adipose fin reddish-orange tinge.
+// ══════════════════════════════════════════════════════════════════════════════
+brown: (<svg width={w} height={h} viewBox="0 0 420 152" fill="none">
+<defs>
+  <linearGradient id="B0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#3a2c10"/>
+    <stop offset="22%" stopColor="#7a5828"/>
+    <stop offset="50%" stopColor="#b88c48"/>
+    <stop offset="76%" stopColor="#d8ae6a"/>
+    <stop offset="100%" stopColor="#f0dca0"/>
+  </linearGradient>
+  <linearGradient id="B1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#4a3018"/><stop offset="100%" stopColor="#6a4828"/>
+  </linearGradient>
+  <radialGradient id="B2" cx="50%" cy="32%" r="52%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.4"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="B3"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#1a0c00" floodOpacity="0.4"/></filter>
+  <clipPath id="B4">
+    <path d="M58 76 C58 38 112 12 212 8 C302 4 382 30 402 76 C382 122 302 148 212 144 C112 140 58 114 58 76Z"/>
+  </clipPath>
+</defs>
+<path d="M58 76 C38 50 18 38 26 76 C18 114 38 102 58 76Z" fill="url(#B1)"/>
+<path d="M26 76 L52 56M26 76 L52 76M26 76 L52 96" stroke="#3a2010" strokeWidth="0.8" opacity="0.5"/>
+<path d="M58 76 C58 38 112 12 212 8 C302 4 382 30 402 76 C382 122 302 148 212 144 C112 140 58 114 58 76Z"
+  fill="url(#B0)" filter="url(#B3)"/>
+<path d="M60 50 C112 20 162 10 212 8 C286 4 356 22 398 50 C356 26 284 14 212 14 C154 14 102 36 60 50Z"
+  fill="#2a1c08" opacity="0.7"/>
+<path d="M62 102 C112 134 162 144 212 142 C274 140 338 124 400 102 C350 126 282 140 212 138 C152 136 102 120 62 102Z"
+  fill="#f4e8b8" opacity="0.65"/>
+<g clipPath="url(#B4)" opacity="0.12">
+  {[90,112,134,156,178,200,222,244,266,288,308,326,344,362,380].map((x,i)=>
+    [-1,0,1].map(r=><ellipse key={`ba${i}${r}`} cx={x+r*11} cy={36+r*26} rx="13" ry="9" fill="none" stroke="#3a1800" strokeWidth="0.8"/>)
+  )}
+</g>
+{/* RED SPOTS with cream halos – the hallmark feature */}
+{[
+  [156,42],[178,36],[198,38],[218,42],[238,38],[258,42],[276,38],[294,42],[312,38],[330,42],[348,38],[366,42],
+  [164,56],[184,50],[204,52],[224,54],[244,52],[264,56],[282,52],[300,56],[318,52],[336,56],[354,52],[372,56],
+  [172,68],[192,62],[212,64],[232,66],[252,64],[270,68],[288,64],[306,68],[324,64],[342,68],[360,64],[378,68],
+  [180,80],[200,76],[220,78],[240,76],[258,80],[276,76],[296,80],[314,76],[332,80],[350,76]
+].map(([cx,cy],i)=>(
+  <g key={`brh${i}`}>
+    <circle cx={cx} cy={cy} r="7" fill="#e8c888" opacity="0.42"/>
+    <circle cx={cx} cy={cy} r="4.5" fill="#c01400" opacity="0.88"/>
+    <circle cx={cx-0.5} cy={cy-0.5} r="1.8" fill="#e83020" opacity="0.5"/>
+  </g>
+))}
+{/* black spots upper back */}
+{[
+  [144,28],[164,22],[184,24],[204,28],[224,24],[244,26],[264,30],[282,26],[300,28],[318,24],[336,28],[354,24],[372,28],
+  [152,38],[172,32],[192,34],[212,36],[232,34],[250,38],[268,34],[286,38],[304,34],[322,38],[340,34]
+].map(([cx,cy],i)=>(
+  <circle key={`bbk${i}`} cx={cx} cy={cy} r="3.5" fill="#0a0600" opacity="0.7"/>
+))}
+{/* dorsal fin – olive-brown with spots */}
+<path d="M170 8 C188 -2 208 -7 228 -5 C246 -3 260 4 258 10 C244 7 218 7 170 8Z"
+  fill="#7a6030" stroke="#4a3810" strokeWidth="0.8"/>
+<path d="M172 8 L178 -1M188 7 L193 -5M202 7 L207 -7M217 7 L221 -5M232 7 L236 -1M246 7 L250 3"
+  stroke="#3a2808" strokeWidth="0.7" opacity="0.6"/>
+{[180,194,208,222,238].map((cx,i)=><circle key={`bds${i}`} cx={cx} cy={i===2?-4:i===1||i===3?0:3} r="2.6" fill="#0a0600" opacity="0.55"/>)}
+{/* adipose fin – orange tinge */}
+<path d="M96 22 C86 10 72 12 76 24 C78 32 90 30 96 22Z" fill="#b06020" stroke="#7a4010" strokeWidth="0.7"/>
+<path d="M348 80 C368 66 392 72 394 82 C392 96 368 100 348 94Z" fill="#c0a870" stroke="#907840" strokeWidth="0.8" opacity="0.85"/>
+<path d="M348 80 L376 68M348 87 L388 82M348 94 L376 102" stroke="#907840" strokeWidth="0.5" opacity="0.5"/>
+<path d="M250 140 C244 156 232 160 229 148 C232 138 244 136 250 140Z" fill="#c0a870" stroke="#907840" strokeWidth="0.7"/>
+<path d="M220 140 C212 156 200 158 198 146 C202 136 214 134 220 140Z" fill="#c0a870" stroke="#907840" strokeWidth="0.7"/>
+<path d="M58 76 C58 38 112 12 212 8 C302 4 382 30 402 76 C382 122 302 148 212 144 C112 140 58 114 58 76Z" fill="url(#B2)"/>
+<path d="M336 38 Q370 56 372 76 Q370 96 336 114" stroke="#7a5020" strokeWidth="2" fill="none" opacity="0.38"/>
+<circle cx="390" cy="70" r="12" fill="#0a0600"/><circle cx="390" cy="70" r="9" fill="#1a0e00"/><circle cx="390" cy="70" r="5.5" fill="#0a0600"/>
+<circle cx="390" cy="70" r="8" fill="none" stroke="#6a3808" strokeWidth="1.2" opacity="0.55"/>
+<circle cx="394" cy="64" r="3.5" fill="white" opacity="0.9"/><circle cx="395.5" cy="62.5" r="1.2" fill="white" opacity="0.6"/>
+<path d="M402 73 Q418 77 415 85" stroke="#5a3010" strokeWidth="1.8" fill="none"/>
+<path d="M402 79 Q418 77 415 69" stroke="#4a2808" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MARMORIERTE FORELLE – Salmo marmoratus
+// Largest trout of the Adria system. Olive-green with DARK MARBLE blotches.
+// Very large head. Steely-blue iridescent gill plate. No red spots.
+// ══════════════════════════════════════════════════════════════════════════════
+marble: (<svg width={w} height={h} viewBox="0 0 440 168" fill="none">
+<defs>
+  <linearGradient id="C0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#2a3c18"/>
+    <stop offset="25%" stopColor="#4e6a30"/>
+    <stop offset="55%" stopColor="#7a9a58"/>
+    <stop offset="80%" stopColor="#a8c080"/>
+    <stop offset="100%" stopColor="#d8e8c0"/>
+  </linearGradient>
+  <linearGradient id="C1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#2a3c18"/><stop offset="100%" stopColor="#3a5020"/>
+  </linearGradient>
+  <radialGradient id="C2" cx="50%" cy="30%" r="52%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.36"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="C3"><feDropShadow dx="1" dy="3" stdDeviation="5" floodColor="#0a1408" floodOpacity="0.42"/></filter>
+  <clipPath id="C4">
+    <path d="M52 84 C52 42 108 12 218 8 C322 4 408 34 428 84 C408 134 322 160 218 156 C108 152 52 126 52 84Z"/>
+  </clipPath>
+</defs>
+<path d="M52 84 C32 56 12 42 20 84 C12 126 32 112 52 84Z" fill="url(#C1)"/>
+<path d="M20 84 L46 62M20 84 L46 84M20 84 L46 106" stroke="#2a3c18" strokeWidth="0.9" opacity="0.5"/>
+<path d="M52 84 C52 42 108 12 218 8 C322 4 408 34 428 84 C408 134 322 160 218 156 C108 152 52 126 52 84Z"
+  fill="url(#C0)" filter="url(#C3)"/>
+<path d="M54 56 C108 24 164 12 218 8 C296 4 372 26 422 56 C376 32 298 18 218 14 C156 14 100 36 54 56Z"
+  fill="#1a2810" opacity="0.72"/>
+<path d="M56 112 C110 146 164 158 218 156 C284 154 352 136 424 112 C374 136 298 152 218 148 C154 146 100 128 56 112Z"
+  fill="#d8eec8" opacity="0.6"/>
+{/* MARBLE BLOTCHES – the defining feature, very irregular */}
+<g clipPath="url(#C4)">
+  <path d="M72 50 Q90 34 112 44 Q108 64 90 72 Q68 64 72 50Z" fill="#1a2c0c" opacity="0.82"/>
+  <path d="M116 26 Q136 10 158 20 Q154 44 138 52 Q114 44 116 26Z" fill="#1a2c0c" opacity="0.82"/>
+  <path d="M104 72 Q124 54 148 64 Q144 88 126 96 Q102 88 104 72Z" fill="#1a2c0c" opacity="0.78"/>
+  <path d="M162 20 Q184 4 206 14 Q202 38 186 46 Q160 38 162 20Z" fill="#1a2c0c" opacity="0.82"/>
+  <path d="M172 58 Q194 40 218 52 Q214 76 196 84 Q170 76 172 58Z" fill="#1a2c0c" opacity="0.78"/>
+  <path d="M216 18 Q238 2 260 12 Q256 36 240 44 Q214 36 216 18Z" fill="#1a2c0c" opacity="0.82"/>
+  <path d="M230 60 Q252 44 274 56 Q270 80 252 88 Q228 80 230 60Z" fill="#1a2c0c" opacity="0.78"/>
+  <path d="M270 20 Q292 6 312 16 Q308 38 294 46 Q268 40 270 20Z" fill="#1a2c0c" opacity="0.82"/>
+  <path d="M284 60 Q304 46 324 56 Q320 78 306 86 Q282 80 284 60Z" fill="#1a2c0c" opacity="0.78"/>
+  <path d="M326 24 Q346 12 364 20 Q360 40 348 48 Q324 42 326 24Z" fill="#1a2c0c" opacity="0.82"/>
+  <path d="M336 60 Q354 48 372 56 Q368 76 356 82 Q334 76 336 60Z" fill="#1a2c0c" opacity="0.78"/>
+  <path d="M372 36 Q390 26 406 34 Q402 52 392 58 Q370 52 372 36Z" fill="#1a2c0c" opacity="0.78"/>
+  {/* lighter olive inside blotches */}
+  <path d="M76 54 Q86 44 98 50 Q95 62 88 66 Q75 62 76 54Z" fill="#5a7a38" opacity="0.55"/>
+  <path d="M166 24 Q178 14 192 20 Q189 34 182 38 Q165 34 166 24Z" fill="#5a7a38" opacity="0.55"/>
+  <path d="M234 64 Q248 52 262 60 Q259 74 252 78 Q233 74 234 64Z" fill="#5a7a38" opacity="0.55"/>
+  <path d="M286 64 Q298 54 312 60 Q309 74 302 78 Q284 74 286 64Z" fill="#1a2c0c" opacity="0.4"/>
+</g>
+<g clipPath="url(#C4)" opacity="0.09">
+  {[82,106,130,154,178,202,226,250,274,298,320,342,362,384,404].map((x,i)=>
+    [-1,0,1].map(r=><ellipse key={`ma${i}${r}`} cx={x+r*12} cy={38+r*30} rx="14" ry="10" fill="none" stroke="#1a2c08" strokeWidth="0.8"/>)
+  )}
+</g>
+<path d="M158 8 C180 -4 204 -10 228 -8 C250 -6 268 2 266 10 C250 6 218 6 158 8Z"
+  fill="#4a6428" stroke="#2a4018" strokeWidth="0.9"/>
+<path d="M160 8 L167 -2M178 7 L184 -8M196 7 L202 -10M210 7 L215 -8M226 7 L231 -3M242 7 L247 2"
+  stroke="#2a3c14" strokeWidth="0.8" opacity="0.65"/>
+<path d="M84 26 C72 12 56 14 60 28 C62 38 78 36 84 26Z" fill="#4a6428" stroke="#2a4018" strokeWidth="0.7"/>
+{/* STEELY-BLUE GILL PLATE – iconic feature of marble trout */}
+<path d="M358 44 Q400 62 404 84 Q400 106 358 124" stroke="#4888a8" strokeWidth="5" fill="none" opacity="0.7"/>
+<path d="M354 46 Q394 64 398 84 Q394 104 354 122" fill="#6aA8c8" opacity="0.2"/>
+<path d="M354 50 Q394 66 398 84 Q394 102 354 118" stroke="#6aA8c8" strokeWidth="2" fill="none" opacity="0.35"/>
+<path d="M360 80 C382 64 412 70 416 84 C412 100 382 106 360 96Z" fill="#7aaa60" stroke="#4a7838" strokeWidth="0.9" opacity="0.85"/>
+<path d="M240 152 C234 170 220 174 217 162 C220 150 234 148 240 152Z" fill="#7aaa60" stroke="#4a7838" strokeWidth="0.7"/>
+<path d="M210 152 C202 170 188 172 186 160 C190 148 204 146 210 152Z" fill="#7aaa60" stroke="#4a7838" strokeWidth="0.7"/>
+<path d="M52 84 C52 42 108 12 218 8 C322 4 408 34 428 84 C408 134 322 160 218 156 C108 152 52 126 52 84Z" fill="url(#C2)"/>
+<circle cx="406" cy="76" r="13" fill="#0a1208"/><circle cx="406" cy="76" r="10" fill="#141e10"/><circle cx="406" cy="76" r="6.5" fill="#0a0e08"/>
+<circle cx="406" cy="76" r="9" fill="none" stroke="#3a5828" strokeWidth="1.3" opacity="0.55"/>
+<circle cx="411" cy="69" r="4" fill="white" opacity="0.9"/><circle cx="412.5" cy="67.5" r="1.4" fill="white" opacity="0.6"/>
+<path d="M418 80 Q432 85 429 93" stroke="#3a5020" strokeWidth="2" fill="none"/>
+<path d="M418 88 Q432 85 429 77" stroke="#2a4010" strokeWidth="1.4" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEEFORELLE – Salmo trutta lacustris
+// Most slender trout. Silver-blue, fewer/smaller spots than brown trout.
+// X-shaped or + shaped small dark spots. Deep forked tail.
+// ══════════════════════════════════════════════════════════════════════════════
+lake: (<svg width={w} height={h} viewBox="0 0 440 150" fill="none">
+<defs>
+  <linearGradient id="D0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#1a3060"/>
+    <stop offset="25%" stopColor="#4060a0"/>
+    <stop offset="52%" stopColor="#8098cc"/>
+    <stop offset="78%" stopColor="#c0d0f0"/>
+    <stop offset="100%" stopColor="#f0f6ff"/>
+  </linearGradient>
+  <linearGradient id="D1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#1a3060"/><stop offset="100%" stopColor="#2a4888"/>
+  </linearGradient>
+  <radialGradient id="D2" cx="50%" cy="28%" r="52%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.5"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="D3"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#0a1428" floodOpacity="0.38"/></filter>
+  <clipPath id="D4">
+    <path d="M50 75 C50 38 106 12 214 8 C308 4 390 28 410 75 C390 122 308 142 214 138 C106 134 50 112 50 75Z"/>
+  </clipPath>
+</defs>
+<path d="M50 75 C30 49 10 36 18 75 C10 114 30 101 50 75Z" fill="url(#D1)"/>
+<path d="M18 75 L44 55M18 75 L44 75M18 75 L44 95" stroke="#1a3060" strokeWidth="0.9" opacity="0.5"/>
+<path d="M50 75 C50 38 106 12 214 8 C308 4 390 28 410 75 C390 122 308 142 214 138 C106 134 50 112 50 75Z"
+  fill="url(#D0)" filter="url(#D3)"/>
+<path d="M52 48 C108 20 162 10 214 8 C286 4 356 20 404 48 C360 28 286 16 214 14 C154 14 100 34 52 48Z"
+  fill="#101830" opacity="0.75"/>
+<path d="M54 102 C108 132 162 140 214 138 C278 136 344 120 406 102 C356 122 284 136 214 134 C152 132 100 118 54 102Z"
+  fill="#eef4ff" opacity="0.72"/>
+<g clipPath="url(#D4)" opacity="0.15">
+  {[84,106,128,150,172,194,216,238,260,282,302,320,338,356,374,392].map((x,i)=>
+    [-1,0,1].map(r=><ellipse key={`la${i}${r}`} cx={x+r*10} cy={36+r*24} rx="12" ry="8" fill="none" stroke="#1030a0" strokeWidth="0.7"/>)
+  )}
+</g>
+{/* Small dark spots, fewer than brown trout */}
+{[
+  [148,30],[168,24],[188,26],[208,30],[228,26],[248,28],[266,32],[284,28],[302,32],[320,28],[338,32],[356,28],[374,32],[390,34],
+  [156,44],[176,38],[196,40],[216,42],[236,40],[254,44],[272,40],[290,44],[308,40],[326,44],[344,40],[362,44],[380,40],
+  [164,56],[184,50],[204,52],[224,54],[242,52],[262,56],[280,52],[298,56],[316,52],[334,56],[352,52],[370,56]
+].map(([cx,cy],i)=>(
+  <circle key={`lb${i}`} cx={cx} cy={cy} r="3" fill="#08081c" opacity="0.62"/>
+))}
+{/* X-shaped marks – characteristic */}
+{[
+  [168,68],[190,64],[212,66],[234,64],[254,68],[274,64],[294,68],[314,64],[334,68],[354,64],[372,68],[390,64],
+  [176,80],[198,76],[218,78],[238,76],[258,80],[278,76],[298,80],[318,76],[338,80],[358,76],[376,80]
+].map(([cx,cy],i)=>(
+  <g key={`lx${i}`}>
+    <path d={`M${cx-3.5} ${cy-3.5}L${cx+3.5} ${cy+3.5}M${cx+3.5} ${cy-3.5}L${cx-3.5} ${cy+3.5}`}
+      stroke="#08081c" strokeWidth="1.6" opacity="0.55"/>
+  </g>
+))}
+<path d="M172 8 C190 -2 210 -6 230 -4 C248 -2 262 5 260 11 C246 8 218 8 172 8Z"
+  fill="#4a60a8" stroke="#2840a0" strokeWidth="0.8"/>
+<path d="M174 8 L180 -1M190 7 L195 -4M205 7 L210 -6M220 7 L225 -3M236 7 L241 0M252 7 L256 4"
+  stroke="#2840a0" strokeWidth="0.7" opacity="0.6"/>
+<path d="M94 22 C84 10 70 12 74 24 C76 32 88 30 94 22Z" fill="#4a60a8" stroke="#2840a0" strokeWidth="0.7"/>
+<path d="M348 78 C368 64 392 70 394 80 C392 94 368 98 348 92Z" fill="#90a8d8" stroke="#5878c0" strokeWidth="0.8" opacity="0.85"/>
+<path d="M348 78 L374 66M348 85 L388 80M348 92 L374 100" stroke="#5878c0" strokeWidth="0.5" opacity="0.5"/>
+<path d="M248 134 C242 150 230 154 227 144 C230 134 242 132 248 134Z" fill="#90a8d8" stroke="#5878c0" strokeWidth="0.7"/>
+<path d="M218 134 C210 150 198 152 196 142 C200 132 212 130 218 134Z" fill="#90a8d8" stroke="#5878c0" strokeWidth="0.7"/>
+<path d="M50 75 C50 38 106 12 214 8 C308 4 390 28 410 75 C390 122 308 142 214 138 C106 134 50 112 50 75Z" fill="url(#D2)"/>
+<path d="M338 36 Q372 54 374 75 Q372 96 338 114" stroke="#3860b0" strokeWidth="2" fill="none" opacity="0.4"/>
+<circle cx="397" cy="68" r="12" fill="#0a0c1c"/><circle cx="397" cy="68" r="9" fill="#141628"/><circle cx="397" cy="68" r="5.5" fill="#0a0c1c"/>
+<circle cx="397" cy="68" r="8" fill="none" stroke="#2848a8" strokeWidth="1.2" opacity="0.55"/>
+<circle cx="401" cy="62" r="3.5" fill="white" opacity="0.9"/><circle cx="402.5" cy="60.5" r="1.2" fill="white" opacity="0.6"/>
+<path d="M409 71 Q424 76 421 84" stroke="#2848a8" strokeWidth="1.8" fill="none"/>
+<path d="M409 77 Q424 76 421 68" stroke="#1838a0" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SEESAIBLING – Salvelinus alpinus
+// Steel-blue/dark back → bright ORANGE-RED belly. Pale cream spots on flanks.
+// WHITE leading edges on all lower fins – key diagnostic. No scales visible.
+// ══════════════════════════════════════════════════════════════════════════════
+arctic: (<svg width={w} height={h} viewBox="0 0 420 152" fill="none">
+<defs>
+  <linearGradient id="E0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#101e2e"/>
+    <stop offset="25%" stopColor="#203a58"/>
+    <stop offset="48%" stopColor="#3a6080"/>
+    <stop offset="68%" stopColor="#d86040"/>
+    <stop offset="85%" stopColor="#f08060"/>
+    <stop offset="100%" stopColor="#ffa080"/>
+  </linearGradient>
+  <linearGradient id="E1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#101e2e"/><stop offset="100%" stopColor="#182838"/>
+  </linearGradient>
+  <radialGradient id="E2" cx="50%" cy="28%" r="50%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.4"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="E3"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#080c10" floodOpacity="0.42"/></filter>
+  <clipPath id="E4">
+    <path d="M58 76 C58 40 112 14 212 10 C300 6 382 30 402 76 C382 122 300 142 212 138 C112 134 58 112 58 76Z"/>
+  </clipPath>
+</defs>
+<path d="M58 76 C38 50 18 38 26 76 C18 114 38 102 58 76Z" fill="url(#E1)"/>
+<path d="M26 76 L52 56M26 76 L52 76M26 76 L52 96" stroke="#101e2e" strokeWidth="0.9" opacity="0.5"/>
+<path d="M58 76 C58 40 112 14 212 10 C300 6 382 30 402 76 C382 122 300 142 212 138 C112 134 58 112 58 76Z"
+  fill="url(#E0)" filter="url(#E3)"/>
+{/* dark steel back overlay */}
+<path d="M60 50 C114 22 164 12 212 10 C284 6 354 22 398 50 C358 28 284 16 212 16 C154 16 102 36 60 50Z"
+  fill="#0c1828" opacity="0.82"/>
+{/* CREAM/WHITE SPOTS – diagnostic of char species */}
+<g clipPath="url(#E4)">
+  {[
+    [148,42],[168,36],[188,38],[208,42],[228,38],[248,42],[266,38],[284,42],[302,38],[320,42],[338,38],[356,42],[374,38],[390,42],
+    [156,54],[176,48],[196,50],[216,52],[236,50],[254,54],[272,50],[290,54],[308,50],[326,54],[344,50],[362,54],[380,50],[396,52],
+    [164,66],[184,60],[204,62],[224,64],[242,62],[262,66],[280,62],[298,66],[316,62],[334,66],[352,62],[370,66],[388,62],
+    [170,78],[190,72],[210,74],[230,76],[248,74],[268,78],[286,74],[304,78],[322,74],[340,78],[358,74],[376,78],
+    [178,90],[198,86],[218,88],[236,86],[256,90],[274,86],[292,90],[310,86],[328,90],[346,86],[364,90]
+  ].map(([cx,cy],i)=>(
+    <g key={`esp${i}`}>
+      <circle cx={cx} cy={cy} r="5.5" fill="#ffe8d0" opacity="0.48"/>
+      <circle cx={cx} cy={cy} r="3.5" fill="#fff4ec" opacity="0.7"/>
+    </g>
+  ))}
+</g>
+<path d="M168 10 C186 0 208 -5 228 -3 C248 -1 262 6 260 12 C246 9 218 9 168 10Z"
+  fill="#182838" stroke="#0c1828" strokeWidth="0.8"/>
+<path d="M170 10 L176 0M188 9 L193 -3M204 9 L209 -5M218 9 L223 -3M234 9 L239 0M248 9 L253 4"
+  stroke="#0c1828" strokeWidth="0.7" opacity="0.65"/>
+<path d="M96 22 C86 10 72 12 76 24 C78 32 90 30 96 22Z" fill="#182838" stroke="#0c1828" strokeWidth="0.7"/>
+{/* WHITE-EDGED PECTORAL – most distinctive fin */}
+<path d="M348 80 C368 66 392 72 394 82 C392 96 368 100 348 94Z"
+  fill="#e06040" stroke="white" strokeWidth="2.8" opacity="0.94"/>
+<path d="M348 80 L348 94" stroke="white" strokeWidth="4" opacity="0.88"/>
+<path d="M348 80 L375 67M348 87 L388 82M348 94 L375 107" stroke="white" strokeWidth="0.6" opacity="0.45"/>
+{/* WHITE-EDGED VENTRAL FINS */}
+<path d="M250 136 C244 152 232 156 229 146 C232 136 244 134 250 136Z"
+  fill="#e06040" stroke="white" strokeWidth="2.4"/>
+<path d="M250 136 L229 145" stroke="white" strokeWidth="3.2" opacity="0.86"/>
+<path d="M220 136 C212 152 200 154 198 144 C202 134 214 132 220 136Z"
+  fill="#e06040" stroke="white" strokeWidth="2.4"/>
+<path d="M220 136 L198 143" stroke="white" strokeWidth="3.2" opacity="0.86"/>
+<path d="M58 76 C58 40 112 14 212 10 C300 6 382 30 402 76 C382 122 300 142 212 138 C112 134 58 112 58 76Z" fill="url(#E2)"/>
+<path d="M336 38 Q370 56 372 76 Q370 96 336 114" stroke="#2a4060" strokeWidth="2" fill="none" opacity="0.38"/>
+<circle cx="389" cy="70" r="12" fill="#060608"/><circle cx="389" cy="70" r="9" fill="#0e0e10"/><circle cx="389" cy="70" r="5.5" fill="#060608"/>
+<circle cx="389" cy="70" r="8" fill="none" stroke="#1a3050" strokeWidth="1.2" opacity="0.55"/>
+<circle cx="393" cy="64" r="3.5" fill="white" opacity="0.9"/><circle cx="394.5" cy="62.5" r="1.2" fill="white" opacity="0.6"/>
+<path d="M401 73 Q416 77 413 85" stroke="#182838" strokeWidth="1.8" fill="none"/>
+<path d="M401 79 Q416 77 413 69" stroke="#0e1c2c" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BACHSAIBLING – Salvelinus fontinalis
+// Dark olive-green, worm-like VERMICULATIONS on back. Red spots with BLUE halos.
+// Yellow spots on upper flanks. Vivid red-orange belly. White-black fin edges.
+// ══════════════════════════════════════════════════════════════════════════════
+brook: (<svg width={w} height={h} viewBox="0 0 420 152" fill="none">
+<defs>
+  <linearGradient id="F0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#0e1808"/>
+    <stop offset="22%" stopColor="#2a3c18"/>
+    <stop offset="48%" stopColor="#4e6a30"/>
+    <stop offset="70%" stopColor="#c83018"/>
+    <stop offset="85%" stopColor="#e84828"/>
+    <stop offset="100%" stopColor="#f87050"/>
+  </linearGradient>
+  <linearGradient id="F1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#1a2810"/><stop offset="100%" stopColor="#223018"/>
+  </linearGradient>
+  <radialGradient id="F2" cx="50%" cy="28%" r="50%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.35"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="F3"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#040802" floodOpacity="0.44"/></filter>
+  <clipPath id="F4">
+    <path d="M58 76 C58 40 112 14 212 10 C300 6 382 30 402 76 C382 122 300 142 212 138 C112 134 58 112 58 76Z"/>
+  </clipPath>
+</defs>
+<path d="M58 76 C38 50 18 38 26 76 C18 114 38 102 58 76Z" fill="url(#F1)"/>
+<path d="M26 76 L52 56M26 76 L52 76M26 76 L52 96" stroke="#1a2810" strokeWidth="0.9" opacity="0.5"/>
+<path d="M58 76 C58 40 112 14 212 10 C300 6 382 30 402 76 C382 122 300 142 212 138 C112 134 58 112 58 76Z"
+  fill="url(#F0)" filter="url(#F3)"/>
+{/* VERMICULATIONS – worm-like marks on back, very characteristic */}
+<g clipPath="url(#F4)">
+  {[70,88,106,124,142,160,178,196,214,232,250,268,286,306,326,348,370].map((x,i)=>(
+    <path key={`fwm${i}`}
+      d={`M${x} 18 C${x+7} 28 ${x+5} 38 ${x} 46 C${x-5} 54 ${x-7} 64 ${x} 72`}
+      stroke="#1e3010" strokeWidth="4.5" fill="none" opacity="0.52"/>
+  ))}
+  {/* RED SPOTS with BLUE halos */}
+  {[
+    [156,68],[176,62],[196,64],[216,68],[234,64],[254,68],[272,64],[290,68],[308,64],[326,68],[344,64],[362,68],[380,64],
+    [164,80],[184,74],[204,76],[224,78],[242,76],[262,80],[280,76],[298,80],[316,76],[334,80],[352,76],[370,80],
+    [172,92],[192,88],[212,90],[232,88],[250,92],[268,88],[286,92],[306,88],[324,92],[342,88],[360,92]
+  ].map(([cx,cy],i)=>(
+    <g key={`frs${i}`}>
+      <circle cx={cx} cy={cy} r="9" fill="#2244cc" opacity="0.3"/>
+      <circle cx={cx} cy={cy} r="5.5" fill="#cc1100" opacity="0.92"/>
+      <circle cx={cx-0.5} cy={cy-0.5} r="2" fill="#ee3322" opacity="0.5"/>
+    </g>
+  ))}
+  {/* YELLOW SPOTS */}
+  {[
+    [152,52],[172,46],[192,48],[212,52],[230,48],[250,50],[270,50],[290,48],[308,52],[328,48],[348,52],[368,48]
+  ].map(([cx,cy],i)=>(
+    <circle key={`fys${i}`} cx={cx} cy={cy} r="3.8" fill="#e8c820" opacity="0.72"/>
+  ))}
+</g>
+<path d="M168 10 C186 0 208 -5 228 -3 C248 -1 262 6 260 12 C246 9 218 9 168 10Z"
+  fill="#2e4418" stroke="#162810" strokeWidth="0.8"/>
+<path d="M170 10 L176 0M188 9 L193 -3M204 9 L209 -5M218 9 L223 -3M234 9 L239 0M248 9 L253 4"
+  stroke="#162810" strokeWidth="0.7" opacity="0.65"/>
+<path d="M96 22 C86 10 72 12 76 24 C78 32 90 30 96 22Z" fill="#2e4418" stroke="#162810" strokeWidth="0.7"/>
+{/* WHITE + BLACK edges on fins */}
+<path d="M348 80 C368 66 392 72 394 82 C392 96 368 100 348 94Z"
+  fill="#e04828" stroke="white" strokeWidth="3"/>
+<path d="M348 80 L348 94" stroke="white" strokeWidth="4.5" opacity="0.88"/>
+<path d="M347 81 L347 93" stroke="#0a0a06" strokeWidth="1.6" opacity="0.65"/>
+<path d="M250 136 C244 152 232 156 229 146 C232 136 244 134 250 136Z"
+  fill="#e04828" stroke="white" strokeWidth="2.6"/>
+<path d="M250 136 L229 145" stroke="white" strokeWidth="3.8" opacity="0.86"/>
+<path d="M249 137 L230 144" stroke="#0a0a06" strokeWidth="1.4" opacity="0.65"/>
+<path d="M220 136 C212 152 200 154 198 144 C202 134 214 132 220 136Z"
+  fill="#e04828" stroke="white" strokeWidth="2.6"/>
+<path d="M220 136 L198 143" stroke="white" strokeWidth="3.8" opacity="0.86"/>
+<path d="M58 76 C58 40 112 14 212 10 C300 6 382 30 402 76 C382 122 300 142 212 138 C112 134 58 112 58 76Z" fill="url(#F2)"/>
+<path d="M336 38 Q370 56 372 76 Q370 96 336 114" stroke="#2e4418" strokeWidth="2" fill="none" opacity="0.38"/>
+<circle cx="389" cy="70" r="12" fill="#060602"/><circle cx="389" cy="70" r="9" fill="#0e0e06"/><circle cx="389" cy="70" r="5.5" fill="#060602"/>
+<circle cx="389" cy="70" r="8" fill="none" stroke="#1e3010" strokeWidth="1.2" opacity="0.55"/>
+<circle cx="393" cy="64" r="3.5" fill="white" opacity="0.9"/><circle cx="394.5" cy="62.5" r="1.2" fill="white" opacity="0.6"/>
+<path d="M401 73 Q416 77 413 85" stroke="#2e4418" strokeWidth="1.8" fill="none"/>
+<path d="M401 79 Q416 77 413 69" stroke="#1e3010" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ÄSCHE – Thymallus thymallus
+// Slender silver-grey body, tiny scales. HUGE sail dorsal fin – purple-violet
+// with rows of pink-red spots. Small head, underslung mouth.
+// ══════════════════════════════════════════════════════════════════════════════
+grayling: (<svg width={w} height={h} viewBox="0 0 420 185" fill="none">
+<defs>
+  <linearGradient id="G0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#182030"/>
+    <stop offset="25%" stopColor="#3a5070"/>
+    <stop offset="52%" stopColor="#7090b0"/>
+    <stop offset="78%" stopColor="#b8d0e8"/>
+    <stop offset="100%" stopColor="#ecf6ff"/>
+  </linearGradient>
+  <linearGradient id="G1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#182030"/><stop offset="100%" stopColor="#243050"/>
+  </linearGradient>
+  <linearGradient id="G2" x1="0" y1="0" x2="0" y2="1" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#d070f0"/>
+    <stop offset="30%" stopColor="#a040c0"/>
+    <stop offset="65%" stopColor="#8050a8"/>
+    <stop offset="100%" stopColor="#8888b8" stopOpacity="0.7"/>
+  </linearGradient>
+  <radialGradient id="G3" cx="50%" cy="28%" r="50%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.45"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="G4"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#0a1020" floodOpacity="0.4"/></filter>
+  <clipPath id="G5">
+    <path d="M56 108 C56 72 106 48 200 44 C286 40 368 62 388 108 C368 154 286 176 200 172 C106 168 56 144 56 108Z"/>
+  </clipPath>
+</defs>
+<path d="M56 108 C36 80 14 66 22 108 C14 150 36 136 56 108Z" fill="url(#G1)"/>
+<path d="M22 108 L50 86M22 108 L50 108M22 108 L50 130" stroke="#182030" strokeWidth="0.9" opacity="0.5"/>
+<path d="M56 108 C56 72 106 48 200 44 C286 40 368 62 388 108 C368 154 286 176 200 172 C106 168 56 144 56 108Z"
+  fill="url(#G0)" filter="url(#G4)"/>
+<path d="M58 80 C106 54 156 46 200 44 C268 40 336 56 382 80 C340 60 268 48 200 50 C148 50 96 66 58 80Z"
+  fill="#101828" opacity="0.72"/>
+<path d="M60 136 C106 162 156 172 200 170 C264 168 330 152 384 136 C338 154 268 168 200 166 C148 164 98 150 60 136Z"
+  fill="#ecf6ff" opacity="0.65"/>
+<g clipPath="url(#G5)" opacity="0.18">
+  {[78,96,114,132,150,168,186,204,222,240,258,276,294,312,330,350,370].map((x,i)=>
+    [-1,0,1].map(r=><ellipse key={`ga${i}${r}`} cx={x+r*9} cy={60+r*22} rx="11" ry="7" fill="none" stroke="#1a30a0" strokeWidth="0.7"/>)
+  )}
+</g>
+{/* small dark spots on flank */}
+{[
+  [148,80],[168,74],[188,76],[208,80],[226,76],[246,78],[264,80],[282,76],[300,80],[318,76],[336,80],[354,76],[372,80],[388,76],
+  [156,94],[176,88],[196,90],[216,92],[234,90],[252,94],[272,90],[290,94],[308,90],[326,94],[344,90],[362,94],[380,90]
+].map(([cx,cy],i)=>(
+  <circle key={`gsp${i}`} cx={cx} cy={cy} r="2.2" fill="#101828" opacity="0.42"/>
+))}
+{/* THE MASSIVE SAIL DORSAL FIN */}
+<path d="M100 44 C120 22 144 10 168 8 C192 6 212 14 226 28 C238 40 244 52 240 58 C224 50 196 46 100 44Z"
+  fill="url(#G2)" stroke="#7030b0" strokeWidth="1.1"/>
+<path d="M102 44 L110 22M120 43 L127 10M136 43 L143 7M152 43 L158 7M168 43 L173 9M184 43 L189 17M200 43 L204 30M216 44 L220 40M230 45 L236 52"
+  stroke="#5020a0" strokeWidth="0.8" opacity="0.65"/>
+{/* pink-red spots on dorsal fin */}
+{[[114,20],[130,10],[146,8],[162,9],[178,16],[194,25]].map(([cx,cy],i)=>(
+  <g key={`gds${i}`}>
+    <circle cx={cx} cy={cy} r="5.5" fill="#b030a0" opacity="0.55"/>
+    <circle cx={cx} cy={cy} r="3" fill="#f050c0" opacity="0.82"/>
+  </g>
+))}
+{/* iridescent sheen on dorsal */}
+<path d="M100 44 C120 22 144 10 168 8 C192 6 212 14 226 28 C238 40 244 52 240 58 C224 50 196 46 100 44Z"
+  fill="#e0b0ff" opacity="0.15"/>
+<path d="M76 56 C64 42 50 44 54 58 C56 68 72 66 76 56Z" fill="#5070a8" stroke="#3050a0" strokeWidth="0.7"/>
+<path d="M346 112 C366 96 390 102 392 114 C390 128 366 132 346 126Z"
+  fill="#a0b0d0" stroke="#6880b8" strokeWidth="0.9" opacity="0.85"/>
+<path d="M346 112 L372 98M346 119 L386 114M346 126 L372 134" stroke="#6880b8" strokeWidth="0.5" opacity="0.5"/>
+<path d="M236 170 C230 186 218 190 215 178 C218 168 230 166 236 170Z" fill="#a0b0d0" stroke="#6880b8" strokeWidth="0.7"/>
+<path d="M206 170 C198 186 186 188 184 176 C188 166 200 164 206 170Z" fill="#a0b0d0" stroke="#6880b8" strokeWidth="0.7"/>
+<path d="M56 108 C56 72 106 48 200 44 C286 40 368 62 388 108 C368 154 286 176 200 172 C106 168 56 144 56 108Z" fill="url(#G3)"/>
+<path d="M326 64 Q360 82 362 108 Q360 134 326 152" stroke="#4060a8" strokeWidth="2" fill="none" opacity="0.4"/>
+<circle cx="376" cy="100" r="12" fill="#060808"/><circle cx="376" cy="100" r="9" fill="#0e1010"/><circle cx="376" cy="100" r="5.5" fill="#060808"/>
+<circle cx="376" cy="100" r="8" fill="none" stroke="#2848a8" strokeWidth="1.2" opacity="0.55"/>
+<circle cx="380" cy="94" r="3.5" fill="white" opacity="0.9"/><circle cx="381.5" cy="92.5" r="1.2" fill="white" opacity="0.6"/>
+<path d="M388 104 Q402 109 399 117" stroke="#3858a8" strokeWidth="1.8" fill="none"/>
+<path d="M388 112 Q402 109 399 101" stroke="#2848a0" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// HECHT – Esox lucius
+// Very elongated (8-10x length/depth ratio). Dark green-olive with pale barring.
+// Duck-bill flat snout. Dorsal and anal fins set far back near tail.
+// ══════════════════════════════════════════════════════════════════════════════
+pike: (<svg width={w} height={h} viewBox="0 0 500 110" fill="none">
+<defs>
+  <linearGradient id="H0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#101808"/>
+    <stop offset="20%" stopColor="#2a3c14"/>
+    <stop offset="46%" stopColor="#587840"/>
+    <stop offset="72%" stopColor="#a0b880"/>
+    <stop offset="100%" stopColor="#d8e8c0"/>
+  </linearGradient>
+  <linearGradient id="H1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#1a2c0a"/><stop offset="100%" stopColor="#243814"/>
+  </linearGradient>
+  <radialGradient id="H2" cx="52%" cy="28%" r="50%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.32"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="H3"><feDropShadow dx="1" dy="3" stdDeviation="5" floodColor="#050e02" floodOpacity="0.45"/></filter>
+  <clipPath id="H4">
+    <path d="M14 55 C14 32 46 16 148 10 C250 4 420 18 468 55 C420 92 250 100 148 96 C46 92 14 78 14 55Z"/>
+  </clipPath>
+</defs>
+{/* FORKED TAIL */}
+<path d="M14 55 C-2 36 -8 22 0 55 C-8 88 -2 74 14 55Z" fill="#1a2c0a"/>
+<path d="M0 55 L12 37M0 55 L12 55M0 55 L12 73" stroke="#101e06" strokeWidth="0.9" opacity="0.55"/>
+<path d="M14 55 C14 32 46 16 148 10 C250 4 420 18 468 55 C420 92 250 100 148 96 C46 92 14 78 14 55Z"
+  fill="url(#H0)" filter="url(#H3)"/>
+<path d="M16 32 C52 16 100 10 148 10 C240 6 390 18 462 36 C396 22 244 14 148 14 C94 14 48 26 16 32Z"
+  fill="#0c1606" opacity="0.82"/>
+<path d="M16 76 C52 90 100 96 148 92 C238 90 388 80 462 72 C396 84 246 94 148 88 C94 86 48 80 16 76Z"
+  fill="#d0e0b0" opacity="0.7"/>
+{/* MOTTLED BARS – vertical pale bars/blotches */}
+<g clipPath="url(#H4)">
+  {[28,48,68,88,108,128,148,168,188,210,232,254,276,300,326,354,384,416,448].map((x,i)=>(
+    <path key={`hv${i}`}
+      d={`M${x} 14 C${x+4} 24 ${x+3} 36 ${x} 44 C${x-3} 52 ${x-4} 64 ${x} 72 C${x+3} 80 ${x+2} 90 ${x} 96`}
+      stroke="#1a2c0a" strokeWidth={i%3===0?8:i%3===1?5:3.5} fill="none" opacity="0.35"/>
+  ))}
+  {/* cream-yellow blotches */}
+  {[38,60,80,100,122,144,166,188,212,236,260,286,312,340,368,398,428,460].map((x,i)=>(
+    <ellipse key={`hbl${i}`} cx={x} cy={i%2===0?22:32} rx="10" ry="6" fill="#c0d0a0" opacity="0.28"/>
+  ))}
+</g>
+{/* DORSAL FIN – far back */}
+<path d="M362 10 C380 2 400 -2 420 0 C438 2 452 9 450 16 C436 12 408 11 362 10Z"
+  fill="#3a5820" stroke="#1e3810" strokeWidth="0.9"/>
+<path d="M364 10 L370 2M378 9 L384 -1M392 9 L398 -2M408 9 L414 1M422 9 L428 6M440 10 L445 12"
+  stroke="#1e3810" strokeWidth="0.7" opacity="0.6"/>
+{/* ANAL FIN – also far back */}
+<path d="M356 93 C368 104 384 106 386 96 C384 88 368 86 356 93Z" fill="#3a5820" stroke="#1e3810" strokeWidth="0.8"/>
+{/* PECTORAL FIN */}
+<path d="M418 56 C438 42 464 48 466 58 C464 70 438 76 418 68Z" fill="#8aaa60" stroke="#507830" strokeWidth="0.9" opacity="0.88"/>
+<path d="M418 56 L448 44M418 62 L460 58M418 68 L448 78" stroke="#507830" strokeWidth="0.6" opacity="0.5"/>
+{/* VENTRAL FIN */}
+<path d="M264 94 C258 106 248 110 246 100 C248 92 260 90 264 94Z" fill="#8aaa60" stroke="#507830" strokeWidth="0.7"/>
+{/* DUCK-BILL SNOUT */}
+<path d="M462 40 Q490 46 488 55 Q490 64 462 70" fill="#3a5820" stroke="#1e3810" strokeWidth="1.1"/>
+{/* teeth hints */}
+{[466,472,478,484].map((x,i)=>(<path key={`ht${i}`} d={`M${x} 54 L${x+0.5} 58`} stroke="#c8d8b0" strokeWidth="1.1" opacity="0.65"/>))}
+<path d="M14 55 C14 32 46 16 148 10 C250 4 420 18 468 55 C420 92 250 100 148 96 C46 92 14 78 14 55Z" fill="url(#H2)"/>
+{/* gill */}
+<path d="M400 28 Q432 40 434 55 Q432 70 400 82" stroke="#4a6828" strokeWidth="2" fill="none" opacity="0.38"/>
+{/* large eye */}
+<circle cx="458" cy="48" r="14" fill="#060800"/><circle cx="458" cy="48" r="11" fill="#101400"/><circle cx="458" cy="48" r="7" fill="#060800"/>
+<circle cx="458" cy="48" r="10" fill="none" stroke="#4a6020" strokeWidth="1.5" opacity="0.5"/>
+<circle cx="463" cy="42" r="4.5" fill="white" opacity="0.9"/><circle cx="465" cy="40" r="1.8" fill="white" opacity="0.6"/>
+<path d="M480 52 Q496 56 494 64" stroke="#2a4010" strokeWidth="2" fill="none"/>
+<path d="M480 58 Q496 56 494 48" stroke="#1e3808" strokeWidth="1.5" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FLUSSBARSCH – Perca fluviatilis
+// Moderately deep body (depth ~30% of length). Green-olive, 6-7 dark vertical bars.
+// Two dorsal fins: spiny first, soft second. Vivid orange-red pelvic/anal fins.
+// ══════════════════════════════════════════════════════════════════════════════
+perch: (<svg width={w} height={h} viewBox="0 0 360 166" fill="none">
+<defs>
+  <linearGradient id="I0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#0c1604"/>
+    <stop offset="22%" stopColor="#2e5018"/>
+    <stop offset="50%" stopColor="#70a030"/>
+    <stop offset="78%" stopColor="#c8d890"/>
+    <stop offset="100%" stopColor="#f0f8c0"/>
+  </linearGradient>
+  <linearGradient id="I1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#0c1604"/><stop offset="100%" stopColor="#1a2e08"/>
+  </linearGradient>
+  <radialGradient id="I2" cx="50%" cy="32%" r="52%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.42"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="I3"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#040a02" floodOpacity="0.44"/></filter>
+  <clipPath id="I4">
+    <path d="M38 82 C38 42 82 14 180 10 C266 6 328 36 344 82 C328 128 266 154 180 150 C82 146 38 122 38 82Z"/>
+  </clipPath>
+</defs>
+<path d="M38 82 C24 58 8 46 14 82 C8 118 24 106 38 82Z" fill="url(#I1)"/>
+<path d="M14 82 L34 62M14 82 L34 82M14 82 L34 102" stroke="#0c1604" strokeWidth="0.9" opacity="0.5"/>
+<path d="M38 82 C38 42 82 14 180 10 C266 6 328 36 344 82 C328 128 266 154 180 150 C82 146 38 122 38 82Z"
+  fill="url(#I0)" filter="url(#I3)"/>
+<path d="M40 54 C82 24 128 14 180 10 C244 6 300 22 338 52 C298 30 244 18 180 16 C120 16 74 36 40 54Z"
+  fill="#0a1202" opacity="0.8"/>
+<path d="M42 110 C82 138 128 148 180 146 C238 144 292 128 340 110 C296 130 240 144 180 142 C122 140 78 126 42 110Z"
+  fill="#f0f8c0" opacity="0.62"/>
+{/* 7 DARK VERTICAL BARS – THE defining feature */}
+<g clipPath="url(#I4)">
+  {[72,96,118,140,164,188,214].map((x,i)=>(
+    <g key={`ivb${i}`}>
+      <rect x={x-10} y={10} width={20} height={140} fill="#0a1402" opacity="0.54" rx="5"/>
+      <rect x={x-5} y={12} width={9} height={136} fill="#0c1802" opacity="0.28" rx="3"/>
+    </g>
+  ))}
+  {/* scale texture in lighter areas */}
+  <g opacity="0.1">
+    {[60,82,104,126,148,170,194,218,242,264,284,306,326].map((x,i)=>
+      [-1,0,1].map(r=><ellipse key={`ia${i}${r}`} cx={x+r*10} cy={36+r*30} rx="12" ry="9" fill="none" stroke="#1e3808" strokeWidth="0.8"/>)
+    )}
+  </g>
+</g>
+{/* SPINY FIRST DORSAL FIN */}
+<path d="M76 10 C90 -1 108 -5 124 -3 C138 -1 148 5 146 12 C134 8 108 9 76 10Z"
+  fill="#162e08" stroke="#0a1e04" strokeWidth="1"/>
+<path d="M78 10 L82 0M90 9 L95 -2M102 9 L108 -4M116 9 L121 -3M130 10 L135 0M142 11 L144 6"
+  stroke="#0a1e04" strokeWidth="0.9" opacity="0.8"/>
+{[84,94,107,120,133].map((x,i)=>(<line key={`isp${i}`} x1={x} y1={10} x2={x-0.5} y2={i<3?-4:-1} stroke="#060e02" strokeWidth="1.5"/>))}
+{/* SOFT SECOND DORSAL */}
+<path d="M150 10 C164 2 182 -1 200 2 C214 4 224 10 222 16 C210 12 188 11 150 10Z"
+  fill="#2a5010" stroke="#142e06" strokeWidth="0.8"/>
+<path d="M152 10 L157 2M165 9 L170 0M177 9 L182 -1M191 9 L196 3M207 10 L211 7"
+  stroke="#142e06" strokeWidth="0.7" opacity="0.65"/>
+{/* ORANGE-RED PECTORAL */}
+<path d="M290 84 C308 68 332 74 334 86 C332 100 308 106 290 98Z"
+  fill="#e87820" stroke="#b05010" strokeWidth="1" opacity="0.93"/>
+<path d="M290 84 L315 72M290 91 L328 86M290 98 L315 110" stroke="#b05010" strokeWidth="0.6" opacity="0.5"/>
+{/* VIVID ORANGE-RED PELVIC FINS */}
+<path d="M202 148 C196 164 184 168 181 158 C184 148 196 146 202 148Z"
+  fill="#e87820" stroke="#b05010" strokeWidth="1"/>
+<path d="M178 148 C172 164 160 166 158 156 C162 146 174 144 178 148Z"
+  fill="#e87820" stroke="#b05010" strokeWidth="1"/>
+{/* ORANGE ANAL FIN */}
+<path d="M148 148 C140 162 130 162 129 152 C131 144 142 142 148 148Z"
+  fill="#e87820" stroke="#b05010" strokeWidth="1"/>
+<path d="M38 82 C38 42 82 14 180 10 C266 6 328 36 344 82 C328 128 266 154 180 150 C82 146 38 122 38 82Z" fill="url(#I2)"/>
+{/* preopercular spine */}
+<path d="M278 38 Q306 58 310 82 Q306 106 278 126" stroke="#162e08" strokeWidth="2.5" fill="none" opacity="0.48"/>
+<path d="M278 126 Q270 134 266 130" stroke="#0a2004" strokeWidth="2" fill="none"/>
+<circle cx="306" cy="72" r="13" fill="#040402"/><circle cx="306" cy="72" r="10" fill="#0c0a00"/><circle cx="306" cy="72" r="6.5" fill="#040402"/>
+<circle cx="306" cy="72" r="9" fill="none" stroke="#2e6010" strokeWidth="1.5" opacity="0.55"/>
+<circle cx="310" cy="66" r="4" fill="white" opacity="0.9"/><circle cx="311.5" cy="64.5" r="1.5" fill="white" opacity="0.6"/>
+<path d="M320 78 Q334 83 331 91" stroke="#2e5010" strokeWidth="1.8" fill="none"/>
+<path d="M320 86 Q334 83 331 75" stroke="#1e4008" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ROTAUGE – Rutilus rutilus
+// Oval, moderately deep body. Silver-blue, VIVID RED EYE is key feature.
+// Prominent scales. All fins tinged red-orange. No spots.
+// ══════════════════════════════════════════════════════════════════════════════
+roach: (<svg width={w} height={h} viewBox="0 0 350 140" fill="none">
+<defs>
+  <linearGradient id="J0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#101828"/>
+    <stop offset="25%" stopColor="#3050a0"/>
+    <stop offset="52%" stopColor="#7090d0"/>
+    <stop offset="78%" stopColor="#c0d4f8"/>
+    <stop offset="100%" stopColor="#f0f6ff"/>
+  </linearGradient>
+  <linearGradient id="J1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#101828"/><stop offset="100%" stopColor="#1a2840"/>
+  </linearGradient>
+  <radialGradient id="J2" cx="50%" cy="28%" r="52%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.52"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="J3"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#0a1028" floodOpacity="0.38"/></filter>
+  <clipPath id="J4">
+    <path d="M34 70 C34 36 72 12 172 8 C260 4 316 30 330 70 C316 110 260 132 172 128 C72 124 34 104 34 70Z"/>
+  </clipPath>
+</defs>
+<path d="M34 70 C20 48 6 36 12 70 C6 104 20 92 34 70Z" fill="url(#J1)"/>
+{/* RED tinge on tail */}
+<path d="M34 70 C20 48 6 36 12 70 C6 104 20 92 34 70Z" fill="#cc1100" opacity="0.3"/>
+<path d="M12 70 L30 52M12 70 L30 70M12 70 L30 88" stroke="#1a2840" strokeWidth="0.9" opacity="0.5"/>
+<path d="M34 70 C34 36 72 12 172 8 C260 4 316 30 330 70 C316 110 260 132 172 128 C72 124 34 104 34 70Z"
+  fill="url(#J0)" filter="url(#J3)"/>
+<path d="M36 44 C72 18 114 10 172 8 C232 4 280 18 322 42 C284 24 232 14 172 14 C112 14 68 32 36 44Z"
+  fill="#101828" opacity="0.72"/>
+<path d="M38 96 C74 118 116 126 172 124 C224 122 272 108 320 96 C278 112 224 122 172 120 C116 118 72 106 38 96Z"
+  fill="#f0f6ff" opacity="0.7"/>
+{/* LARGE PROMINENT SCALES */}
+<g clipPath="url(#J4)" opacity="0.28">
+  {[58,76,94,112,130,148,166,184,202,220,238,256,272,288,304,320].map((x,i)=>
+    [-1,0,1].map(r=><ellipse key={`ja${i}${r}`} cx={x+r*9} cy={30+r*26} rx="12" ry="9" fill="none" stroke="#1030c0" strokeWidth="0.9"/>)
+  )}
+</g>
+{/* no spots on roach – clean silver body */}
+{/* dorsal fin */}
+<path d="M140 8 C154 0 170 -3 186 -1 C200 1 208 7 206 12 C194 9 170 9 140 8Z"
+  fill="#4460c0" stroke="#2040b8" strokeWidth="0.8"/>
+<path d="M142 8 L148 0M156 7 L161 -2M168 7 L173 -3M180 7 L185 0M196 7 L200 4"
+  stroke="#2040b8" strokeWidth="0.7" opacity="0.6"/>
+{/* BRIGHT RED FINS */}
+<path d="M264 72 C280 56 302 62 304 72 C302 86 280 90 264 84Z"
+  fill="#cc0800" stroke="#aa0000" strokeWidth="1.3" opacity="0.97"/>
+<path d="M264 72 L286 60M264 78 L298 72M264 84 L286 92" stroke="#ff2211" strokeWidth="0.6" opacity="0.65"/>
+<path d="M196 126 C190 142 178 146 175 136 C178 126 190 124 196 126Z"
+  fill="#cc0800" stroke="#aa0000" strokeWidth="1.1"/>
+<path d="M172 126 C166 142 154 144 152 134 C156 124 168 122 172 126Z"
+  fill="#cc0800" stroke="#aa0000" strokeWidth="1.1"/>
+<path d="M140 125 C134 140 124 142 122 132 C125 123 136 121 140 125Z"
+  fill="#cc0800" stroke="#aa0000" strokeWidth="1.1"/>
+{/* red on tail */}
+<path d="M34 70 C20 48 6 36 12 70 C6 104 20 92 34 70Z" fill="#cc0800" opacity="0.4"/>
+<path d="M34 70 C34 36 72 12 172 8 C260 4 316 30 330 70 C316 110 260 132 172 128 C72 124 34 104 34 70Z" fill="url(#J2)"/>
+<path d="M254 28 Q282 44 284 70 Q282 96 254 112" stroke="#3858c0" strokeWidth="2" fill="none" opacity="0.4"/>
+{/* VIVID RED EYE – THE defining feature of roach */}
+<circle cx="313" cy="62" r="16" fill="#bb0000"/>
+<circle cx="313" cy="62" r="13" fill="#dd1100"/>
+<circle cx="313" cy="62" r="9" fill="#ff2200"/>
+<circle cx="313" cy="62" r="6" fill="#0a0800"/>
+<circle cx="313" cy="62" r="3.5" fill="#060600"/>
+<circle cx="313" cy="62" r="12" fill="none" stroke="#ff4422" strokeWidth="1.5" opacity="0.5"/>
+<circle cx="318" cy="55" r="4.5" fill="white" opacity="0.9"/><circle cx="319.5" cy="53.5" r="1.6" fill="white" opacity="0.6"/>
+<path d="M323 66 Q336 71 333 79" stroke="#3858c0" strokeWidth="1.8" fill="none"/>
+<path d="M323 74 Q336 71 333 63" stroke="#2848b0" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ROTFEDER – Scardinius erythrophthalmus
+// Similar to roach but GOLDEN-YELLOW, deeper body, UPTURNED mouth.
+// Orange-red eye. Brilliant red fins. Dorsal set further back.
+// ══════════════════════════════════════════════════════════════════════════════
+rudd: (<svg width={w} height={h} viewBox="0 0 340 143" fill="none">
+<defs>
+  <linearGradient id="K0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#181200"/>
+    <stop offset="22%" stopColor="#6a4c08"/>
+    <stop offset="50%" stopColor="#d4a028"/>
+    <stop offset="78%" stopColor="#f0d878"/>
+    <stop offset="100%" stopColor="#fef8d0"/>
+  </linearGradient>
+  <linearGradient id="K1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#4a3808"/><stop offset="100%" stopColor="#604808"/>
+  </linearGradient>
+  <radialGradient id="K2" cx="50%" cy="28%" r="52%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.5"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="K3"><feDropShadow dx="1" dy="3" stdDeviation="4" floodColor="#100c00" floodOpacity="0.4"/></filter>
+  <clipPath id="K4">
+    <path d="M34 71 C34 36 70 12 168 8 C254 4 310 30 324 71 C310 112 254 134 168 130 C70 126 34 106 34 71Z"/>
+  </clipPath>
+</defs>
+<path d="M34 71 C20 48 6 36 12 71 C6 106 20 94 34 71Z" fill="url(#K1)"/>
+<path d="M34 71 C20 48 6 36 12 71 C6 106 20 94 34 71Z" fill="#ee0800" opacity="0.42"/>
+<path d="M12 71 L30 53M12 71 L30 71M12 71 L30 89" stroke="#4a3808" strokeWidth="0.9" opacity="0.5"/>
+<path d="M34 71 C34 36 70 12 168 8 C254 4 310 30 324 71 C310 112 254 134 168 130 C70 126 34 106 34 71Z"
+  fill="url(#K0)" filter="url(#K3)"/>
+<path d="M36 44 C70 18 112 10 168 8 C228 4 278 18 316 42 C282 24 228 14 168 14 C110 14 66 32 36 44Z"
+  fill="#181200" opacity="0.72"/>
+<path d="M38 98 C72 120 114 128 168 126 C220 124 270 110 318 98 C278 114 222 124 168 122 C114 120 70 108 38 98Z"
+  fill="#fef8d0" opacity="0.7"/>
+{/* scales */}
+<g clipPath="url(#K4)" opacity="0.27">
+  {[58,76,94,112,130,148,166,184,202,220,238,256,272,288,304,318].map((x,i)=>
+    [-1,0,1].map(r=><ellipse key={`ka${i}${r}`} cx={x+r*9} cy={30+r*26} rx="12" ry="9" fill="none" stroke="#7a5008" strokeWidth="0.9"/>)
+  )}
+</g>
+{/* dorsal fin – set further back than roach */}
+<path d="M168 8 C182 0 198 -3 214 -1 C228 1 236 7 234 12 C222 9 198 9 168 8Z"
+  fill="#c09820" stroke="#806010" strokeWidth="0.8"/>
+<path d="M170 8 L176 0M184 7 L189 -2M197 7 L202 -3M210 7 L215 0M226 7 L230 5"
+  stroke="#806010" strokeWidth="0.7" opacity="0.6"/>
+{/* BRILLIANT RED FINS */}
+<path d="M258 72 C274 56 296 62 298 72 C296 86 274 90 258 84Z"
+  fill="#ee0600" stroke="#cc0000" strokeWidth="1.4" opacity="0.98"/>
+<path d="M258 72 L280 60M258 78 L292 72M258 84 L280 92" stroke="#ff2211" strokeWidth="0.6" opacity="0.65"/>
+<path d="M190 128 C184 144 172 148 169 138 C172 128 184 126 190 128Z"
+  fill="#ee0600" stroke="#cc0000" strokeWidth="1.2"/>
+<path d="M166 128 C160 144 148 146 146 136 C150 126 162 124 166 128Z"
+  fill="#ee0600" stroke="#cc0000" strokeWidth="1.2"/>
+<path d="M134 127 C128 142 118 144 116 134 C119 125 130 123 134 127Z"
+  fill="#ee0600" stroke="#cc0000" strokeWidth="1.2"/>
+<path d="M34 71 C20 48 6 36 12 71 C6 106 20 94 34 71Z" fill="#ee0600" opacity="0.42"/>
+<path d="M34 71 C34 36 70 12 168 8 C254 4 310 30 324 71 C310 112 254 134 168 130 C70 126 34 106 34 71Z" fill="url(#K2)"/>
+<path d="M248 28 Q276 44 278 71 Q276 98 248 114" stroke="#a08020" strokeWidth="2" fill="none" opacity="0.4"/>
+{/* ORANGE-RED EYE */}
+<circle cx="307" cy="63" r="16" fill="#ee4400"/>
+<circle cx="307" cy="63" r="13" fill="#ff6600"/>
+<circle cx="307" cy="63" r="9" fill="#ff7700"/>
+<circle cx="307" cy="63" r="6" fill="#0a0800"/>
+<circle cx="307" cy="63" r="3.5" fill="#060600"/>
+<circle cx="307" cy="63" r="12" fill="none" stroke="#ffaa22" strokeWidth="1.5" opacity="0.5"/>
+<circle cx="312" cy="56" r="4.5" fill="white" opacity="0.9"/><circle cx="313.5" cy="54.5" r="1.6" fill="white" opacity="0.6"/>
+{/* UPTURNED MOUTH – key diagnostic */}
+<path d="M317 62 Q330 56 328 50" stroke="#906010" strokeWidth="2.2" fill="none"/>
+<path d="M317 62 Q330 68 328 74" stroke="#7a5008" strokeWidth="1.6" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// KARAUSCHE – Carassius carassius
+// Very deep-bodied (depth ~45% of length). Golden-brown, large rounded scales.
+// Tall arched dorsal fin, small rounded tail. No barbels. Stocky.
+// ══════════════════════════════════════════════════════════════════════════════
+crucian: (<svg width={w} height={h} viewBox="0 0 310 162" fill="none">
+<defs>
+  <linearGradient id="L0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#1c1400"/>
+    <stop offset="22%" stopColor="#7a5808"/>
+    <stop offset="50%" stopColor="#c89818"/>
+    <stop offset="78%" stopColor="#e8c858"/>
+    <stop offset="100%" stopColor="#faf0a8"/>
+  </linearGradient>
+  <linearGradient id="L1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#3c2c00"/><stop offset="100%" stopColor="#504000"/>
+  </linearGradient>
+  <radialGradient id="L2" cx="50%" cy="30%" r="52%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.46"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="L3"><feDropShadow dx="1" dy="3" stdDeviation="5" floodColor="#100c00" floodOpacity="0.44"/></filter>
+  <clipPath id="L4">
+    <path d="M34 82 C34 40 70 12 152 8 C226 4 278 38 290 82 C278 126 226 154 152 150 C70 146 34 124 34 82Z"/>
+  </clipPath>
+</defs>
+{/* small rounded tail */}
+<path d="M34 82 C20 60 8 48 14 82 C8 116 20 104 34 82Z" fill="url(#L1)"/>
+<path d="M14 82 L30 64M14 82 L30 82M14 82 L30 100" stroke="#3c2c00" strokeWidth="0.9" opacity="0.5"/>
+<path d="M34 82 C34 40 70 12 152 8 C226 4 278 38 290 82 C278 126 226 154 152 150 C70 146 34 124 34 82Z"
+  fill="url(#L0)" filter="url(#L3)"/>
+<path d="M36 52 C72 24 110 12 152 8 C202 4 248 22 282 50 C248 28 200 16 152 14 C106 14 66 34 36 52Z"
+  fill="#1c1400" opacity="0.75"/>
+<path d="M38 114 C74 140 112 150 152 148 C196 146 238 132 286 114 C248 132 198 146 152 144 C108 142 72 128 38 114Z"
+  fill="#faf0a8" opacity="0.65"/>
+{/* LARGE ROUND SCALES */}
+<g clipPath="url(#L4)" opacity="0.28">
+  {[54,72,90,108,126,144,162,180,198,216,234,252,270,284].map((x,i)=>
+    [-1,0,1,2].map(r=><ellipse key={`la${i}${r}`} cx={x+r*10} cy={30+r*28} rx="13" ry="10" fill="none" stroke="#5a3c00" strokeWidth="1"/>)
+  )}
+</g>
+{/* HIGH ARCHED DORSAL FIN */}
+<path d="M80 8 C96 -4 116 -10 136 -8 C154 -6 168 1 166 9 C152 5 122 5 80 8Z"
+  fill="#a07810" stroke="#684e06" strokeWidth="0.9"/>
+<path d="M82 8 L88 -3M98 7 L104 -8M112 7 L118 -10M126 7 L132 -8M142 7 L148 -3M158 8 L162 4"
+  stroke="#684e06" strokeWidth="0.8" opacity="0.65"/>
+<path d="M56 26 C46 14 34 16 38 28 C40 38 52 36 56 26Z" fill="#a07810" stroke="#684e06" strokeWidth="0.7"/>
+<path d="M226 84 C244 68 266 74 268 86 C266 100 244 104 226 98Z"
+  fill="#c89818" stroke="#886208" strokeWidth="0.9" opacity="0.87"/>
+<path d="M226 84 L250 70M226 91 L262 86M226 98 L250 110" stroke="#886208" strokeWidth="0.6" opacity="0.5"/>
+<path d="M168 148 C162 164 150 168 147 158 C150 148 162 146 168 148Z" fill="#c89818" stroke="#886208" strokeWidth="0.7"/>
+<path d="M144 148 C138 164 126 166 124 156 C128 146 140 144 144 148Z" fill="#c89818" stroke="#886208" strokeWidth="0.7"/>
+<path d="M34 82 C34 40 70 12 152 8 C226 4 278 38 290 82 C278 126 226 154 152 150 C70 146 34 124 34 82Z" fill="url(#L2)"/>
+<path d="M222 36 C252 54 256 82 252 110 C248 130 238 140 222 128" stroke="#a07810" strokeWidth="2" fill="none" opacity="0.38"/>
+<circle cx="270" cy="74" r="13" fill="#080600"/><circle cx="270" cy="74" r="10" fill="#100e00"/><circle cx="270" cy="74" r="6.5" fill="#080600"/>
+<circle cx="270" cy="74" r="9" fill="none" stroke="#806008" strokeWidth="1.3" opacity="0.55"/>
+<circle cx="275" cy="67" r="4" fill="white" opacity="0.9"/><circle cx="276.5" cy="65.5" r="1.4" fill="white" opacity="0.6"/>
+<path d="M282 78 Q294 83 291 91" stroke="#886208" strokeWidth="1.8" fill="none"/>
+<path d="M282 86 Q294 83 291 75" stroke="#706006" strokeWidth="1.2" fill="none"/>
+</svg>),
+
+// ══════════════════════════════════════════════════════════════════════════════
+// KARPFEN – Cyprinus carpio
+// Very deep, massive body (depth ~42% of length). Bronze-gold.
+// HUGE scales. Long dorsal fin. 4 BARBELS around fleshy lips. Forked tail.
+// ══════════════════════════════════════════════════════════════════════════════
+carp: (<svg width={w} height={h} viewBox="0 0 380 183" fill="none">
+<defs>
+  <linearGradient id="M0" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0%" stopColor="#1c1200"/>
+    <stop offset="20%" stopColor="#6a4c08"/>
+    <stop offset="48%" stopColor="#b88820"/>
+    <stop offset="76%" stopColor="#d8ae50"/>
+    <stop offset="100%" stopColor="#f4de98"/>
+  </linearGradient>
+  <linearGradient id="M1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0%" stopColor="#3c2c00"/><stop offset="100%" stopColor="#5a3c08"/>
+  </linearGradient>
+  <radialGradient id="M2" cx="50%" cy="28%" r="52%">
+    <stop offset="0%" stopColor="#fff" stopOpacity="0.44"/><stop offset="100%" stopColor="#fff" stopOpacity="0"/>
+  </radialGradient>
+  <filter id="M3"><feDropShadow dx="1" dy="4" stdDeviation="6" floodColor="#100c00" floodOpacity="0.48"/></filter>
+  <clipPath id="M4">
+    <path d="M26 92 C26 44 66 14 172 10 C266 6 342 42 358 92 C342 142 266 170 172 166 C66 162 26 140 26 92Z"/>
+  </clipPath>
+</defs>
+{/* BROAD TAIL */}
+<path d="M26 92 C10 66 -2 50 4 92 C-2 134 10 118 26 92Z" fill="url(#M1)"/>
+<path d="M4 92 L22 70M4 92 L22 92M4 92 L22 114" stroke="#3c2c00" strokeWidth="1" opacity="0.55"/>
+<path d="M26 92 C26 44 66 14 172 10 C266 6 342 42 358 92 C342 142 266 170 172 166 C66 162 26 140 26 92Z"
+  fill="url(#M0)" filter="url(#M3)"/>
+<path d="M28 58 C70 26 118 14 172 10 C230 6 290 24 350 56 C298 30 234 18 172 16 C114 16 66 36 28 58Z"
+  fill="#1c1200" opacity="0.78"/>
+<path d="M30 128 C72 158 118 168 172 166 C226 164 280 148 352 128 C302 150 236 164 172 160 C116 158 68 144 30 128Z"
+  fill="#f4de98" opacity="0.68"/>
+{/* HUGE CARP SCALES – very pronounced */}
+<g clipPath="url(#M4)" opacity="0.3">
+  {[50,72,94,116,138,160,182,204,226,248,270,292,314,336].map((x,i)=>
+    [-1,0,1,2].map(r=><ellipse key={`ma${i}${r}`} cx={x+r*12} cy={32+r*30} rx="16" ry="12" fill="none" stroke="#5a3c08" strokeWidth="1.1"/>)
+  )}
+</g>
+{/* LONG DORSAL FIN */}
+<path d="M88 10 C108 0 130 -5 156 -3 C180 -1 200 6 210 14 C198 10 172 10 88 10Z"
+  fill="#9a7818" stroke="#6a5008" strokeWidth="0.9"/>
+<path d="M90 10 L96 0M106 9 L112 -1M120 9 L126 -3M136 9 L142 -2M152 9 L158 1M168 10 L174 5M184 10 L190 8M202 11 L206 10"
+  stroke="#6a5008" strokeWidth="0.8" opacity="0.65"/>
+<path d="M52 28 C42 14 28 16 32 30 C34 40 48 38 52 28Z" fill="#9a7818" stroke="#6a5008" strokeWidth="0.7"/>
+{/* PECTORAL FIN */}
+<path d="M294 94 C316 76 344 82 346 96 C344 112 316 118 294 110Z"
+  fill="#b09020" stroke="#7a6010" strokeWidth="1" opacity="0.9"/>
+<path d="M294 94 L322 80M294 102 L340 96M294 110 L322 122" stroke="#7a6010" strokeWidth="0.6" opacity="0.5"/>
+{/* VENTRAL + ANAL FINS */}
+<path d="M212 164 C206 180 194 184 191 172 C194 162 206 160 212 164Z" fill="#b09020" stroke="#7a6010" strokeWidth="0.8"/>
+<path d="M186 164 C180 180 168 182 166 170 C170 160 182 158 186 164Z" fill="#b09020" stroke="#7a6010" strokeWidth="0.8"/>
+<path d="M148 162 C140 178 128 180 126 168 C130 158 142 156 148 162Z" fill="#b09020" stroke="#7a6010" strokeWidth="0.8"/>
+<path d="M26 92 C26 44 66 14 172 10 C266 6 342 42 358 92 C342 142 266 170 172 166 C66 162 26 140 26 92Z" fill="url(#M2)"/>
+<path d="M278 40 Q322 62 326 92 Q322 122 278 144" stroke="#b09018" strokeWidth="2.5" fill="none" opacity="0.4"/>
+{/* BARBELS – the most diagnostic feature, 4 of them */}
+<path d="M347 90 Q362 96 360 108" stroke="#906010" strokeWidth="3" fill="none"/>
+<path d="M347 90 Q364 84 362 74" stroke="#906010" strokeWidth="3" fill="none"/>
+<path d="M345 94 Q356 100 354 110" stroke="#7a5008" strokeWidth="2" fill="none" opacity="0.7"/>
+<path d="M345 88 Q358 82 356 72" stroke="#7a5008" strokeWidth="2" fill="none" opacity="0.7"/>
+{/* LARGE EYE */}
+<circle cx="335" cy="82" r="14" fill="#080600"/><circle cx="335" cy="82" r="11" fill="#140e00"/><circle cx="335" cy="82" r="7" fill="#080600"/>
+<circle cx="335" cy="82" r="10" fill="none" stroke="#8a6008" strokeWidth="1.8" opacity="0.55"/>
+<circle cx="340" cy="75" r="4.5" fill="white" opacity="0.9"/><circle cx="341.5" cy="73.5" r="1.8" fill="white" opacity="0.6"/>
+{/* FLESHY LIPS */}
+<path d="M350 88 Q366 94 363 104" stroke="#8a6010" strokeWidth="3" fill="none"/>
+<path d="M350 96 Q366 94 363 84" stroke="#7a5008" strokeWidth="2.4" fill="none"/>
+<path d="M352 92 Q362 96 360 102" stroke="#c0a030" strokeWidth="2" fill="none" opacity="0.6"/>
+</svg>),
+
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {svgs[type] || svgs.brown}
+    </div>
+  );
+}
+
+
+// ─── MAIN APP ──────────────────────────────────────────────────────────────────
+function App() {
+  const [catches, setCatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("grid"); // grid | species | stats
+  const [selectedSpecies, setSelectedSpecies] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [customWater, setCustomWater] = useState("");
+  const [useCustom, setUseCustom] = useState(false);
+  const [statsFilter, setStatsFilter] = useState("all");
+  const [ultraRealistic, setUltraRealistic] = useState(false);
+  const [form, setForm] = useState({ length: "", water: ULTEN_WATERS[0], weight: "", bait: "" });
+  const [formError, setFormError] = useState("");
+  const [formPhoto, setFormPhoto] = useState(null); // base64 string
+  // Gallery / filter / sort state
+  const [galleryFilter, setGalleryFilter] = useState({ species: "all", minLen: "", maxLen: "", season: "all", sort: "newest" });
+  const [lightboxPhoto, setLightboxPhoto] = useState(null); // {src, catch}
+
+  const currentSeason = new Date().getFullYear();
+
+  useEffect(() => {
+    loadCatches().then(data => { setCatches(data); setLoading(false); });
+  }, []);
+
+  const seasonCatches = catches.filter(c => c.season === currentSeason);
+
+  const addCatch = useCallback(() => {
+    if (!form.length || isNaN(parseFloat(form.length)) || parseFloat(form.length) <= 0) {
+      setFormError("Bitte eine gültige Länge eingeben.");
+      return;
+    }
+    const water = useCustom ? customWater.trim() : form.water;
+    if (!water) { setFormError("Bitte einen Fangort angeben."); return; }
+
+    const newCatch = {
+      id: Date.now(),
+      species: selectedSpecies.id,
+      length: parseFloat(form.length),
+      water,
+      weight: form.weight ? parseFloat(form.weight) : null,
+      bait: form.bait || null,
+      photo: formPhoto || null,
+      date: new Date().toISOString(),
+      season: currentSeason,
+    };
+    const updated = [newCatch, ...catches];
+    setCatches(updated);
+    saveCatches(updated);
+    setShowForm(false);
+    setForm({ length: "", water: ULTEN_WATERS[0], weight: "", bait: "" });
+    setFormPhoto(null);
+    setCustomWater("");
+    setUseCustom(false);
+    setFormError("");
+  }, [form, catches, selectedSpecies, useCustom, customWater, currentSeason, formPhoto]);
+
+  const getBestCatch = (speciesId) => {
+    const sc = seasonCatches.filter(c => c.species === speciesId);
+    if (!sc.length) return null;
+    return sc.reduce((best, c) => c.length > best.length ? c : best);
+  };
+
+  if (loading) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0d1117", color: "#c8a060", fontFamily: "Georgia, serif", fontSize: 20 }}>
+      Lade Fangdaten…
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#0d1117", color: "#e8e0d0", fontFamily: "'Crimson Pro', Georgia, 'Times New Roman', serif", display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto", position: "relative" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 4px; } 
+        ::-webkit-scrollbar-track { background: #1a2030; }
+        ::-webkit-scrollbar-thumb { background: #c8a060; border-radius: 2px; }
+        input, select, textarea { outline: none; }
+        button { cursor: pointer; }
+        .fish-card:active { transform: scale(0.97); }
+        .tab-btn { transition: all 0.2s; }
+        .catch-row:hover { background: rgba(200,160,96,0.07) !important; }
+      `}</style>
+
+      {/* HEADER */}
+      <div style={{ background: "linear-gradient(135deg, #0d1117 0%, #1a2030 100%)", borderBottom: "1px solid #2a3040", padding: "16px 20px 12px", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {(view === "species" || (view === "grid" && showForm)) && (
+            <button onClick={() => { setView("grid"); setShowForm(false); setSelectedSpecies(null); setFormError(""); }}
+              style={{ background: "none", border: "none", color: "#c8a060", fontSize: 22, padding: "0 4px 0 0", lineHeight: 1 }}>←</button>
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: "#7a8898", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "Georgia, serif" }}>
+              Fischerverein Ultental · {currentSeason}
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#e8d8b0", lineHeight: 1.2, fontFamily: "'Libre Baskerville', Georgia, serif" }}>
+              {view === "species" ? selectedSpecies?.name : view === "stats" ? "Statistiken" : "Fangtagebuch"}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* GRAFIK TOGGLE */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+              <span style={{ fontSize: 9, color: ultraRealistic ? "#c8a060" : "#4a6070", letterSpacing: "0.1em", fontFamily: "Georgia, serif", textTransform: "uppercase", transition: "color 0.3s" }}>Grafik</span>
+              <div onClick={() => setUltraRealistic(v => !v)} style={{
+                width: 40, height: 22, borderRadius: 11, cursor: "pointer", position: "relative",
+                background: ultraRealistic ? "linear-gradient(135deg, #c8a060, #a07840)" : "#2a3040",
+                border: `1px solid ${ultraRealistic ? "#c8a060" : "#3a4858"}`,
+                transition: "all 0.3s", boxShadow: ultraRealistic ? "0 0 8px #c8a06066" : "none"
+              }}>
+                <div style={{
+                  position: "absolute", top: 2, left: ultraRealistic ? 19 : 2,
+                  width: 16, height: 16, borderRadius: 8,
+                  background: ultraRealistic ? "#0d1117" : "#6a8898",
+                  transition: "left 0.3s", boxShadow: "0 1px 3px rgba(0,0,0,0.4)"
+                }}/>
+              </div>
+            </div>
+            {view === "species" && (
+              <button onClick={() => setShowForm(true)} style={{
+                background: "linear-gradient(135deg, #c8a060, #a07840)", border: "none", color: "#0d1117",
+                borderRadius: 20, padding: "7px 16px", fontWeight: 700, fontSize: 13,
+                fontFamily: "'Crimson Pro', Georgia, serif", letterSpacing: "0.05em"
+              }}>+ Eintrag</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 70 }}>
+
+        {/* GRID VIEW */}
+        {view === "grid" && (
+          <div style={{ padding: "16px 12px" }}>
+            <div style={{ fontSize: 12, color: "#7a8898", marginBottom: 12, textAlign: "center", letterSpacing: "0.08em" }}>
+              {seasonCatches.length} Fische gefangen · Saison {currentSeason}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {FISH_SPECIES.map(fish => {
+                const best = getBestCatch(fish.id);
+                const status = best ? getStatus(fish, best.length) : null;
+                const cfg = status ? STATUS_CONFIG[status] : null;
+                return (
+                  <div key={fish.id} className="fish-card" onClick={() => { setSelectedSpecies(fish); setView("species"); }}
+                    style={{
+                      background: "linear-gradient(160deg, #161e28 0%, #1a2535 100%)",
+                      border: `1px solid ${cfg ? cfg.borderColor + "66" : "#2a3040"}`,
+                      borderRadius: 12, padding: "12px 10px", cursor: "pointer",
+                      transition: "all 0.2s", position: "relative", overflow: "hidden"
+                    }}>
+                    {cfg && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: cfg.borderColor, borderRadius: "12px 12px 0 0" }}/>}
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
+                      {ultraRealistic ? <FishUltra type={fish.svgType} size={110} /> : <FishSVG type={fish.svgType} size={110} />}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#e8d8b0", lineHeight: 1.2, fontFamily: "'Libre Baskerville', Georgia, serif", marginBottom: 2 }}>
+                      {fish.name}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#6a7888", fontStyle: "italic", marginBottom: 6 }}>{fish.latin}</div>
+                    {best ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: cfg.text }}>
+                          {best.length} cm {best.weight ? `· ${best.weight} kg` : ""}
+                        </div>
+                        <StatusBadge status={status} />
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: "#4a5868", fontStyle: "italic" }}>Noch kein Fang</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* SPECIES VIEW */}
+        {view === "species" && selectedSpecies && (
+          <div style={{ padding: "0 0 16px" }}>
+            {/* Fish hero */}
+            <div style={{ background: "linear-gradient(160deg, #161e28, #1a2535)", borderBottom: "1px solid #2a3040", padding: "20px", display: "flex", alignItems: "center", gap: 16 }}>
+              {ultraRealistic ? <FishUltra type={selectedSpecies.svgType} size={130} /> : <FishSVG type={selectedSpecies.svgType} size={130} />}
+              <div>
+                <div style={{ fontSize: 11, color: "#7a8898", letterSpacing: "0.1em", textTransform: "uppercase" }}>Maße (cm)</div>
+                {[
+                  { label: "UM", range: `bis ${selectedSpecies.um}`, cfg: STATUS_CONFIG.UM },
+                  { label: "NM", range: `${selectedSpecies.um}–${selectedSpecies.nm}`, cfg: STATUS_CONFIG.NM },
+                  { label: "TR", range: `${selectedSpecies.nm}–${selectedSpecies.tr}`, cfg: STATUS_CONFIG.TR },
+                  { label: "ST", range: `${selectedSpecies.tr}+`, cfg: STATUS_CONFIG.ST },
+                ].map(r => (
+                  <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: r.cfg.text, background: r.cfg.bg, padding: "1px 6px", borderRadius: 10, border: `1px solid ${r.cfg.borderColor}` }}>{r.label}</span>
+                    <span style={{ fontSize: 12, color: "#a0b0c0" }}>{r.range} cm</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Catches list */}
+            <div style={{ padding: "16px 16px 0" }}>
+              <div style={{ fontSize: 13, color: "#7a8898", letterSpacing: "0.08em", marginBottom: 10, fontFamily: "Georgia, serif" }}>
+                {seasonCatches.filter(c => c.species === selectedSpecies.id).length} Einträge · Saison {currentSeason}
+              </div>
+              {seasonCatches.filter(c => c.species === selectedSpecies.id).length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "#4a5868", fontSize: 14, fontStyle: "italic" }}>
+                  Noch keine Fänge eingetragen.<br/>
+                  <span style={{ fontSize: 12 }}>Tippe auf „+ Eintrag" um loszulegen.</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {seasonCatches.filter(c => c.species === selectedSpecies.id)
+                    .sort((a, b) => b.length - a.length)
+                    .map(c => {
+                      const st = getStatus(selectedSpecies, c.length);
+                      const cfg = STATUS_CONFIG[st];
+                      return (
+                        <div key={c.id} className="catch-row" style={{
+                          background: "#161e28", borderRadius: 10, padding: "12px 14px",
+                          border: `1px solid ${cfg.borderColor}33`, display: "flex", alignItems: "center", gap: 12
+                        }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                              <span style={{ fontSize: 18, fontWeight: 700, color: cfg.text }}>{c.length} cm</span>
+                              {c.weight && <span style={{ fontSize: 12, color: "#7a9898" }}>{c.weight} kg</span>}
+                              <StatusBadge status={st} />
+                            </div>
+                            <div style={{ fontSize: 12, color: "#7a8898" }}>
+                              📍 {c.water}
+                              {c.bait && <span style={{ marginLeft: 8 }}>🪝 {c.bait}</span>}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#4a5868", marginTop: 2 }}>
+                              {new Date(c.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* STATS VIEW */}
+        {view === "stats" && (
+          <div style={{ padding: "16px" }}>
+            <div style={{ fontSize: 12, color: "#7a8898", textAlign: "center", marginBottom: 16, letterSpacing: "0.08em" }}>
+              Saison {currentSeason} · {seasonCatches.length} Fische total
+            </div>
+
+            {seasonCatches.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 20px", color: "#4a5868", fontSize: 14, fontStyle: "italic" }}>
+                Noch keine Fangdaten vorhanden.
+              </div>
+            ) : (
+              <>
+                {/* Pie: Species */}
+                <div style={{ background: "#161e28", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #2a3040" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0", marginBottom: 12, fontFamily: "'Libre Baskerville', Georgia, serif" }}>Fischarten</div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={
+                        FISH_SPECIES.map(f => ({ name: f.name, value: seasonCatches.filter(c => c.species === f.id).length, color: f.color }))
+                          .filter(d => d.value > 0)
+                      } cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, value }) => `${name.split(" ")[0]} (${value})`}
+                        labelLine={{ stroke: "#5a6878" }}
+                        style={{ fontSize: 9, fill: "#a0b0c0", fontFamily: "Georgia, serif" }}>
+                        {FISH_SPECIES.map((f) => <Cell key={f.id} fill={f.color} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: "#1a2535", border: "1px solid #c8a060", borderRadius: 8, color: "#e8d8b0", fontFamily: "Georgia, serif", fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Pie: Waters */}
+                <div style={{ background: "#161e28", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #2a3040" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0", marginBottom: 12, fontFamily: "'Libre Baskerville', Georgia, serif" }}>Gewässer</div>
+                  {(() => {
+                    const waterCounts = {};
+                    seasonCatches.forEach(c => { waterCounts[c.water] = (waterCounts[c.water] || 0) + 1; });
+                    const waterData = Object.entries(waterCounts).map(([name, value], i) => ({ name, value, color: `hsl(${200 + i * 28}, 45%, ${45 + i * 4}%)` }));
+                    return (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie data={waterData} cx="50%" cy="50%" outerRadius={75} dataKey="value"
+                            label={({ name, value }) => `${name.split(" ")[0]} (${value})`}
+                            labelLine={{ stroke: "#5a6878" }}
+                            style={{ fontSize: 9, fill: "#a0b0c0", fontFamily: "Georgia, serif" }}>
+                            {waterData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                          </Pie>
+                          <Tooltip contentStyle={{ background: "#1a2535", border: "1px solid #c8a060", borderRadius: 8, color: "#e8d8b0", fontFamily: "Georgia, serif", fontSize: 12 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    );
+                  })()}
+                </div>
+
+                {/* Line: Size distribution */}
+                <div style={{ background: "#161e28", borderRadius: 12, padding: 16, border: "1px solid #2a3040" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0", marginBottom: 8, fontFamily: "'Libre Baskerville', Georgia, serif" }}>Größenverteilung (5cm-Schritte)</div>
+                  <div style={{ marginBottom: 12 }}>
+                    <select value={statsFilter} onChange={e => setStatsFilter(e.target.value)}
+                      style={{ background: "#0d1117", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "6px 10px", fontSize: 12, width: "100%", fontFamily: "Georgia, serif" }}>
+                      <option value="all">Alle Fischarten</option>
+                      {FISH_SPECIES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                  </div>
+                  {(() => {
+                    const filtered = statsFilter === "all" ? seasonCatches : seasonCatches.filter(c => c.species === statsFilter);
+                    if (!filtered.length) return <div style={{ textAlign: "center", color: "#4a5868", fontSize: 13, padding: "20px 0" }}>Keine Daten</div>;
+                    const maxLen = Math.max(...filtered.map(c => c.length));
+                    const buckets = {};
+                    for (let i = 0; i <= Math.ceil(maxLen / 5) * 5; i += 5) {
+                      buckets[i] = 0;
+                    }
+                    filtered.forEach(c => {
+                      const b = Math.floor(c.length / 5) * 5;
+                      buckets[b] = (buckets[b] || 0) + 1;
+                    });
+                    const chartData = Object.entries(buckets).map(([key, count]) => ({ range: `${key}–${parseInt(key) + 5}`, count }));
+                    return (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#2a3040" />
+                          <XAxis dataKey="range" tick={{ fill: "#7a8898", fontSize: 9, fontFamily: "Georgia, serif" }} />
+                          <YAxis tick={{ fill: "#7a8898", fontSize: 10, fontFamily: "Georgia, serif" }} />
+                          <Tooltip contentStyle={{ background: "#1a2535", border: "1px solid #c8a060", borderRadius: 8, color: "#e8d8b0", fontFamily: "Georgia, serif", fontSize: 12 }} />
+                          <Line type="monotone" dataKey="count" stroke="#c8a060" strokeWidth={2.5} dot={{ fill: "#c8a060", r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} name="Fische" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ADD CATCH MODAL */}
+      {showForm && selectedSpecies && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 200, display: "flex", alignItems: "flex-end", maxWidth: 480, margin: "0 auto" }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowForm(false); setFormError(""); } }}>
+          <div style={{ background: "#161e28", borderRadius: "16px 16px 0 0", padding: "24px 20px 32px", width: "100%", border: "1px solid #2a3840", borderBottom: "none" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#e8d8b0", fontFamily: "'Libre Baskerville', Georgia, serif" }}>Neuer Fang</div>
+                <div style={{ fontSize: 12, color: "#7a8898", fontStyle: "italic" }}>{selectedSpecies.name}</div>
+              </div>
+              <button onClick={() => { setShowForm(false); setFormError(""); }} style={{ background: "#2a3040", border: "none", color: "#a0b0c0", borderRadius: 20, width: 32, height: 32, fontSize: 16 }}>✕</button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, color: "#c8a060", letterSpacing: "0.08em", display: "block", marginBottom: 6, fontFamily: "Georgia, serif" }}>LÄNGE (cm) *</label>
+                <input type="number" placeholder="z.B. 42" value={form.length}
+                  onChange={e => setForm({ ...form, length: e.target.value })}
+                  style={{ width: "100%", background: "#0d1117", border: "1px solid #3a4858", color: "#e8d8b0", borderRadius: 8, padding: "10px 14px", fontSize: 16, fontFamily: "'Crimson Pro', Georgia, serif" }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, color: "#c8a060", letterSpacing: "0.08em", display: "block", marginBottom: 6, fontFamily: "Georgia, serif" }}>FANGORT *</label>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <button onClick={() => setUseCustom(false)} style={{ flex: 1, padding: "7px", borderRadius: 8, border: `1px solid ${!useCustom ? "#c8a060" : "#3a4858"}`, background: !useCustom ? "#c8a06022" : "#0d1117", color: !useCustom ? "#c8a060" : "#7a8898", fontSize: 12, fontFamily: "Georgia, serif" }}>Ulten-Gewässer</button>
+                  <button onClick={() => setUseCustom(true)} style={{ flex: 1, padding: "7px", borderRadius: 8, border: `1px solid ${useCustom ? "#c8a060" : "#3a4858"}`, background: useCustom ? "#c8a06022" : "#0d1117", color: useCustom ? "#c8a060" : "#7a8898", fontSize: 12, fontFamily: "Georgia, serif" }}>Custom</button>
+                </div>
+                {!useCustom ? (
+                  <select value={form.water} onChange={e => setForm({ ...form, water: e.target.value })}
+                    style={{ width: "100%", background: "#0d1117", border: "1px solid #3a4858", color: "#e8d8b0", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontFamily: "'Crimson Pro', Georgia, serif" }}>
+                    {ULTEN_WATERS.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                ) : (
+                  <input type="text" placeholder="Gewässername eingeben…" value={customWater}
+                    onChange={e => setCustomWater(e.target.value)}
+                    style={{ width: "100%", background: "#0d1117", border: "1px solid #3a4858", color: "#e8d8b0", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontFamily: "'Crimson Pro', Georgia, serif" }} />
+                )}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: "#7a8898", letterSpacing: "0.08em", display: "block", marginBottom: 6, fontFamily: "Georgia, serif" }}>GEWICHT (kg)</label>
+                  <input type="number" placeholder="Optional" value={form.weight}
+                    onChange={e => setForm({ ...form, weight: e.target.value })}
+                    step="0.01"
+                    style={{ width: "100%", background: "#0d1117", border: "1px solid #3a4858", color: "#e8d8b0", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontFamily: "'Crimson Pro', Georgia, serif" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: "#7a8898", letterSpacing: "0.08em", display: "block", marginBottom: 6, fontFamily: "Georgia, serif" }}>KÖDER</label>
+                  <input type="text" placeholder="Optional" value={form.bait}
+                    onChange={e => setForm({ ...form, bait: e.target.value })}
+                    style={{ width: "100%", background: "#0d1117", border: "1px solid #3a4858", color: "#e8d8b0", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontFamily: "'Crimson Pro', Georgia, serif" }} />
+                </div>
+              </div>
+
+              {/* PHOTO UPLOAD */}
+              <div>
+                <label style={{ fontSize: 12, color: "#7a8898", letterSpacing: "0.08em", display: "block", marginBottom: 6, fontFamily: "Georgia, serif" }}>FOTO</label>
+                {formPhoto ? (
+                  <div style={{ position: "relative" }}>
+                    <img src={formPhoto} alt="Fang" style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 10, border: "1px solid #3a4858" }}/>
+                    <button onClick={() => setFormPhoto(null)} style={{
+                      position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.7)", border: "none",
+                      color: "white", borderRadius: 20, width: 28, height: 28, fontSize: 14, cursor: "pointer"
+                    }}>✕</button>
+                  </div>
+                ) : (
+                  <label style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                    background: "#0d1117", border: "2px dashed #3a4858", borderRadius: 10,
+                    padding: "20px", cursor: "pointer", color: "#5a7080", fontSize: 13,
+                    fontFamily: "Georgia, serif", transition: "all 0.2s"
+                  }}>
+                    <span style={{ fontSize: 24 }}>📷</span>
+                    <span>Foto auswählen</span>
+                    <input type="file" accept="image/*" style={{ display: "none" }}
+                      onChange={e => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = ev => setFormPhoto(ev.target.result);
+                        reader.readAsDataURL(file);
+                      }}/>
+                  </label>
+                )}
+              </div>
+
+              {formError && <div style={{ color: "#f87171", fontSize: 12, textAlign: "center" }}>{formError}</div>}
+
+              <button onClick={addCatch} style={{
+                background: "linear-gradient(135deg, #c8a060, #a07840)", border: "none", color: "#0d1117",
+                borderRadius: 12, padding: "13px", fontWeight: 700, fontSize: 16, marginTop: 4,
+                fontFamily: "'Libre Baskerville', Georgia, serif", letterSpacing: "0.05em"
+              }}>Fang eintragen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GALLERY VIEW */}
+      {view === "gallery" && (() => {
+        // compute available seasons
+        const allSeasons = [...new Set(catches.map(c => c.season))].sort((a,b) => b-a);
+        const gf = galleryFilter;
+        let filtered = catches.filter(c => {
+          if (gf.species !== "all" && c.species !== gf.species) return false;
+          if (gf.season !== "all" && c.season !== parseInt(gf.season)) return false;
+          if (gf.minLen && c.length < parseFloat(gf.minLen)) return false;
+          if (gf.maxLen && c.length > parseFloat(gf.maxLen)) return false;
+          return true;
+        });
+        // sort
+        if (gf.sort === "biggest") filtered = [...filtered].sort((a,b) => b.length - a.length);
+        else if (gf.sort === "smallest") filtered = [...filtered].sort((a,b) => a.length - b.length);
+        else if (gf.sort === "oldest") filtered = [...filtered].sort((a,b) => new Date(a.date)-new Date(b.date));
+        else filtered = [...filtered].sort((a,b) => new Date(b.date)-new Date(a.date));
+
+        const withPhoto = filtered.filter(c => c.photo);
+        const allFiltered = filtered;
+
+        // season list: 2026 → current year + 4, always ascending
+        const seasonList = [];
+        for (let y = 2026; y <= Math.max(currentSeason + 4, 2030); y++) seasonList.push(y);
+
+        return (
+          <div style={{ position: "fixed", inset: 0, top: 72, bottom: 58, maxWidth: 480, margin: "0 auto", overflowY: "auto", background: "#0d1117" }}>
+            {/* Filter bar – sticky inside the scrollable area, below the app header */}
+            <div style={{ background: "#0d1117", borderBottom: "1px solid #2a3040", padding: "10px 14px 12px", position: "sticky", top: 0, zIndex: 50 }}>
+              <div style={{ fontSize: 11, color: "#c8a060", letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: "Georgia, serif", marginBottom: 8 }}>
+                Galerie · {withPhoto.length} Fotos · {allFiltered.length} Fänge
+              </div>
+              {/* Row 1: Species + Season */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 7 }}>
+                <select value={gf.species} onChange={e => setGalleryFilter(f=>({...f, species: e.target.value}))}
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}>
+                  <option value="all">Alle Arten</option>
+                  {FISH_SPECIES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+                <select value={gf.season} onChange={e => setGalleryFilter(f=>({...f, season: e.target.value}))}
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}>
+                  <option value="all">Alle Saisons</option>
+                  {seasonList.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              {/* Row 2: Min/max size + sort */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 8 }}>
+                <input type="number" placeholder="Min cm" value={gf.minLen}
+                  onChange={e => setGalleryFilter(f=>({...f, minLen: e.target.value}))}
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}/>
+                <input type="number" placeholder="Max cm" value={gf.maxLen}
+                  onChange={e => setGalleryFilter(f=>({...f, maxLen: e.target.value}))}
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}/>
+                <select value={gf.sort} onChange={e => setGalleryFilter(f=>({...f, sort: e.target.value}))}
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}>
+                  <option value="newest">Neueste zuerst</option>
+                  <option value="oldest">Älteste zuerst</option>
+                  <option value="biggest">Größte zuerst</option>
+                  <option value="smallest">Kleinste zuerst</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Photo grid */}
+            <div style={{ padding: "12px" }}>
+              {withPhoto.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "60px 20px", color: "#4a5868" }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>📷</div>
+                  <div style={{ fontSize: 14, fontStyle: "italic", fontFamily: "Georgia, serif" }}>
+                    {allFiltered.length === 0 ? "Keine Fänge mit diesen Filtern." : "Keine Fotos vorhanden. Füge beim Eintragen ein Foto hinzu!"}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {withPhoto.map(c => {
+                    const fish = FISH_SPECIES.find(f => f.id === c.species);
+                    const status = getStatus(fish, c.length);
+                    const cfg = STATUS_CONFIG[status];
+                    return (
+                      <div key={c.id} onClick={() => setLightboxPhoto({src: c.photo, catch: c})}
+                        style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${cfg.borderColor}55`, cursor: "pointer", position: "relative", background: "#161e28" }}>
+                        <img src={c.photo} alt={fish?.name} style={{ width: "100%", height: 130, objectFit: "cover", display: "block" }}/>
+                        {/* overlay info */}
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.82))", padding: "20px 10px 8px" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: cfg.text }}>{c.length} cm {c.weight ? `· ${c.weight}kg` : ""}</div>
+                          <div style={{ fontSize: 10, color: "#a0b0c0", marginTop: 1 }}>{fish?.name}</div>
+                          <div style={{ fontSize: 9, color: "#6a7888" }}>{new Date(c.date).toLocaleDateString("de-DE")}</div>
+                        </div>
+                        {/* status top badge */}
+                        <div style={{ position: "absolute", top: 8, right: 8, background: cfg.bg, border: `1px solid ${cfg.borderColor}`, borderRadius: 10, padding: "2px 7px", fontSize: 9, fontWeight: 700, color: cfg.text }}>{status}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* catches without photo – compact list */}
+              {allFiltered.filter(c => !c.photo).length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 10, color: "#4a5868", letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: "Georgia, serif", marginBottom: 8 }}>
+                    Fänge ohne Foto ({allFiltered.filter(c=>!c.photo).length})
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {allFiltered.filter(c => !c.photo).map(c => {
+                      const fish = FISH_SPECIES.find(f => f.id === c.species);
+                      const status = getStatus(fish, c.length);
+                      const cfg = STATUS_CONFIG[status];
+                      return (
+                        <div key={c.id} style={{ background: "#161e28", borderRadius: 8, padding: "10px 12px", border: `1px solid ${cfg.borderColor}33`, display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: cfg.text }}>{c.length} cm</span>
+                            {c.weight && <span style={{ fontSize: 11, color: "#7a9898", marginLeft: 6 }}>{c.weight} kg</span>}
+                            <span style={{ fontSize: 11, color: "#6a7888", marginLeft: 8 }}>{fish?.name}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: "#4a5868" }}>{new Date(c.date).toLocaleDateString("de-DE")}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* LIGHTBOX */}
+      {lightboxPhoto && (
+        <div onClick={() => setLightboxPhoto(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 500,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          maxWidth: 480, margin: "0 auto", padding: 20
+        }}>
+          <img src={lightboxPhoto.src} alt="Fang" style={{ width: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 12 }}/>
+          {(() => {
+            const c = lightboxPhoto.catch;
+            const fish = FISH_SPECIES.find(f => f.id === c.species);
+            const status = getStatus(fish, c.length);
+            const cfg = STATUS_CONFIG[status];
+            return (
+              <div style={{ marginTop: 16, textAlign: "center" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: cfg.text, fontFamily: "'Libre Baskerville', Georgia, serif" }}>
+                  {fish?.name} · {c.length} cm {c.weight ? `· ${c.weight} kg` : ""}
+                </div>
+                <div style={{ fontSize: 13, color: "#7a8898", marginTop: 4 }}>
+                  📍 {c.water} {c.bait ? `· 🪝 ${c.bait}` : ""}
+                </div>
+                <div style={{ fontSize: 12, color: "#4a5868", marginTop: 2 }}>
+                  {new Date(c.date).toLocaleDateString("de-DE", { day:"2-digit", month:"2-digit", year:"numeric" })} · Saison {c.season}
+                </div>
+                <StatusBadge status={status} large />
+              </div>
+            );
+          })()}
+          <div style={{ marginTop: 20, fontSize: 12, color: "#4a5868" }}>Tippen zum Schließen</div>
+        </div>
+      )}
+
+      {/* BOTTOM TABS */}
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#0d1117", borderTop: "1px solid #2a3040", display: "flex", zIndex: 100 }}>
+        {[
+          { key: "grid", label: "Übersicht", icon: "⊞" },
+          { key: "gallery", label: "Galerie", icon: "◫" },
+          { key: "stats", label: "Statistiken", icon: "◉" },
+        ].map(tab => (
+          <button key={tab.key} className="tab-btn" onClick={() => { setView(tab.key); setShowForm(false); }}
+            style={{
+              flex: 1, padding: "12px 8px 14px", background: "none", border: "none",
+              color: (view === tab.key || (view === "species" && tab.key === "grid")) ? "#c8a060" : "#4a6070",
+              fontSize: 10, fontFamily: "'Crimson Pro', Georgia, serif", letterSpacing: "0.1em",
+              textTransform: "uppercase", display: "flex", flexDirection: "column", alignItems: "center", gap: 3
+            }}>
+            <span style={{ fontSize: 20 }}>{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
+
+  </script>
+
+  <!-- Service Worker for offline use -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        // Inline service worker as blob
+        const swCode = `
+          const CACHE = "fangtagebuch-v1";
+          const ASSETS = ["./"];
+          self.addEventListener("install", e => {
+            e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+          });
+          self.addEventListener("fetch", e => {
+            e.respondWith(
+              caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match("./")))
+            );
+          });
+        `;
+        const blob = new Blob([swCode], {type: "application/javascript"});
+        navigator.serviceWorker.register(URL.createObjectURL(blob))
+          .catch(() => {}); // silent fail if SW blocked
+      });
+    }
+  </script>
+</body>
+</html>
