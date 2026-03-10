@@ -30,8 +30,6 @@
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 
-  <!-- Recharts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.5.0/Recharts.min.js"></script>
 
   <!-- Babel for JSX -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
@@ -39,7 +37,6 @@
   <!-- Globals -->
   <script>
     const { useState, useEffect, useCallback, useRef, useMemo } = React;
-    const { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = (window.Recharts || {});
   </script>
 
   <!-- App -->
@@ -2180,100 +2177,143 @@ function App() {
           </div>
         )}
 
-        {/* STATS VIEW */}
-        {view === "stats" && (
-          <div style={{ padding: "16px" }}>
-            <div style={{ fontSize: 12, color: "#7a8898", textAlign: "center", marginBottom: 16, letterSpacing: "0.08em" }}>
-              Saison {currentSeason} · {seasonCatches.length} Fische total
+        {/* STATS VIEW – pure CSS, no Recharts */}
+        {view === "stats" && (() => {
+          const Card = ({ title, children }) => (
+            <div style={{ background: "#161e28", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #2a3040" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0", marginBottom: 14, fontFamily: "'Libre Baskerville', Georgia, serif" }}>{title}</div>
+              {children}
             </div>
+          );
 
-            {seasonCatches.length === 0 ? (
+          // Bar chart component
+          const BarChart = ({ data, colorKey }) => {
+            const max = Math.max(...data.map(d => d.value), 1);
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {data.map((d, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 90, fontSize: 11, color: "#8898a8", textAlign: "right", flexShrink: 0, fontFamily: "Georgia, serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.label}</div>
+                    <div style={{ flex: 1, background: "#0d1520", borderRadius: 4, height: 22, overflow: "hidden" }}>
+                      <div style={{ width: `${(d.value / max) * 100}%`, height: "100%", background: d.color || "#c8a060", borderRadius: 4, minWidth: d.value > 0 ? 4 : 0, display: "flex", alignItems: "center", paddingLeft: 8, transition: "width 0.4s ease" }}>
+                        {d.value > 0 && <span style={{ fontSize: 11, color: "#0d1117", fontWeight: 700 }}>{d.value}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          };
+
+          // Summary numbers
+          const SummaryRow = ({ items }) => (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 8, marginBottom: 12 }}>
+              {items.map((item, i) => (
+                <div key={i} style={{ background: "#0d1520", borderRadius: 10, padding: "12px 8px", textAlign: "center", border: "1px solid #2a3040" }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: "#c8a060", fontFamily: "'Libre Baskerville', Georgia, serif" }}>{item.value}</div>
+                  <div style={{ fontSize: 10, color: "#7a8898", marginTop: 2, letterSpacing: "0.06em" }}>{item.label}</div>
+                </div>
+              ))}
+            </div>
+          );
+
+          if (seasonCatches.length === 0) return (
+            <div style={{ padding: 16 }}>
               <div style={{ textAlign: "center", padding: "60px 20px", color: "#4a5868", fontSize: 14, fontStyle: "italic" }}>
                 Noch keine Fangdaten vorhanden.
               </div>
-            ) : (
-              <>
-                {/* Pie: Species */}
-                <div style={{ background: "#161e28", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #2a3040" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0", marginBottom: 12, fontFamily: "'Libre Baskerville', Georgia, serif" }}>Fischarten</div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie data={
-                        FISH_SPECIES.map(f => ({ name: f.name, value: seasonCatches.filter(c => c.species === f.id).length, color: f.color }))
-                          .filter(d => d.value > 0)
-                      } cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, value }) => `${name.split(" ")[0]} (${value})`}
-                        labelLine={{ stroke: "#5a6878" }}
-                        style={{ fontSize: 9, fill: "#a0b0c0", fontFamily: "Georgia, serif" }}>
-                        {FISH_SPECIES.map((f) => <Cell key={f.id} fill={f.color} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ background: "#1a2535", border: "1px solid #c8a060", borderRadius: 8, color: "#e8d8b0", fontFamily: "Georgia, serif", fontSize: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+            </div>
+          );
 
-                {/* Pie: Waters */}
-                <div style={{ background: "#161e28", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #2a3040" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0", marginBottom: 12, fontFamily: "'Libre Baskerville', Georgia, serif" }}>Gewässer</div>
-                  {(() => {
-                    const waterCounts = {};
-                    seasonCatches.forEach(c => { waterCounts[c.water] = (waterCounts[c.water] || 0) + 1; });
-                    const waterData = Object.entries(waterCounts).map(([name, value], i) => ({ name, value, color: `hsl(${200 + i * 28}, 45%, ${45 + i * 4}%)` }));
-                    return (
-                      <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
-                          <Pie data={waterData} cx="50%" cy="50%" outerRadius={75} dataKey="value"
-                            label={({ name, value }) => `${name.split(" ")[0]} (${value})`}
-                            labelLine={{ stroke: "#5a6878" }}
-                            style={{ fontSize: 9, fill: "#a0b0c0", fontFamily: "Georgia, serif" }}>
-                            {waterData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                          </Pie>
-                          <Tooltip contentStyle={{ background: "#1a2535", border: "1px solid #c8a060", borderRadius: 8, color: "#e8d8b0", fontFamily: "Georgia, serif", fontSize: 12 }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    );
-                  })()}
-                </div>
+          // Compute stats
+          const allAnglersList = [...new Set(catches.map(c => c.angler).filter(Boolean))];
+          const avgLen = (seasonCatches.reduce((s, c) => s + c.length, 0) / seasonCatches.length).toFixed(1);
+          const maxCatch = seasonCatches.reduce((b, c) => c.length > b.length ? c : b, seasonCatches[0]);
+          const speciesData = FISH_SPECIES.map(f => ({ label: f.name.split(" ")[0], value: seasonCatches.filter(c => c.species === f.id).length, color: f.color })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+          const waterCounts = {};
+          seasonCatches.forEach(c => { waterCounts[c.water] = (waterCounts[c.water] || 0) + 1; });
+          const waterData = Object.entries(waterCounts).sort((a,b) => b[1]-a[1]).map(([name, value], i) => ({ label: name.split(" ").slice(0,2).join(" "), value, color: `hsl(${200 + i * 30}, 50%, ${48 + i * 3}%)` }));
 
-                {/* Line: Size distribution */}
-                <div style={{ background: "#161e28", borderRadius: 12, padding: 16, border: "1px solid #2a3040" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0", marginBottom: 8, fontFamily: "'Libre Baskerville', Georgia, serif" }}>Größenverteilung (5cm-Schritte)</div>
-                  <div style={{ marginBottom: 12 }}>
-                    <select value={statsFilter} onChange={e => setStatsFilter(e.target.value)}
-                      style={{ background: "#0d1117", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "6px 10px", fontSize: 12, width: "100%", fontFamily: "Georgia, serif" }}>
-                      <option value="all">Alle Fischarten</option>
-                      {FISH_SPECIES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                    </select>
+          // Size buckets
+          const filtered = statsFilter === "all" ? seasonCatches : seasonCatches.filter(c => c.species === statsFilter);
+          const buckets = {};
+          filtered.forEach(c => { const b = Math.floor(c.length / 5) * 5; buckets[b] = (buckets[b] || 0) + 1; });
+          const sizeData = Object.entries(buckets).sort((a,b) => +a[0] - +b[0]).map(([key, value]) => ({ label: `${key}–${+key+5}`, value, color: "#c8a060" }));
+
+          // Angler comparison
+          const anglerData = allAnglersList.map((a, i) => ({ label: a, value: seasonCatches.filter(c => c.angler === a).length, color: i === 0 ? "#c8a060" : "#6a9aaa" }));
+
+          return (
+            <div style={{ padding: "16px" }}>
+              <div style={{ fontSize: 12, color: "#7a8898", textAlign: "center", marginBottom: 16, letterSpacing: "0.08em" }}>
+                Saison {currentSeason} · {seasonCatches.length} Fische total
+              </div>
+
+              {/* Summary */}
+              <SummaryRow items={[
+                { value: seasonCatches.length, label: "FÄNGE" },
+                { value: avgLen + " cm", label: "Ø LÄNGE" },
+                { value: maxCatch.length + " cm", label: "REKORD" },
+              ]} />
+
+              {/* Species */}
+              <Card title="🐟 Fischarten">
+                <BarChart data={speciesData} />
+              </Card>
+
+              {/* Waters */}
+              <Card title="📍 Gewässer">
+                <BarChart data={waterData} />
+              </Card>
+
+              {/* Angler comparison – only if >1 angler */}
+              {anglerData.length > 1 && (
+                <Card title="👤 Fischer-Vergleich">
+                  <BarChart data={anglerData} />
+                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {allAnglersList.map((a, i) => {
+                      const ac = seasonCatches.filter(c => c.angler === a);
+                      const avg = ac.length ? (ac.reduce((s,c)=>s+c.length,0)/ac.length).toFixed(1) : "-";
+                      const best = ac.length ? Math.max(...ac.map(c=>c.length)) : "-";
+                      return (
+                        <div key={a} style={{ background: "#0d1520", borderRadius: 8, padding: "10px 12px", border: "1px solid #2a3040", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ fontSize: 13, color: i===0?"#c8a060":"#6a9aaa", fontWeight: 700 }}>👤 {a}</div>
+                          <div style={{ display: "flex", gap: 16 }}>
+                            <div style={{ textAlign: "center" }}>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0" }}>{ac.length}</div>
+                              <div style={{ fontSize: 9, color: "#5a6878" }}>FÄNGE</div>
+                            </div>
+                            <div style={{ textAlign: "center" }}>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0" }}>{avg} cm</div>
+                              <div style={{ fontSize: 9, color: "#5a6878" }}>SCHNITT</div>
+                            </div>
+                            <div style={{ textAlign: "center" }}>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: "#e8d8b0" }}>{best} cm</div>
+                              <div style={{ fontSize: 9, color: "#5a6878" }}>REKORD</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {(() => {
-                    const filtered = statsFilter === "all" ? seasonCatches : seasonCatches.filter(c => c.species === statsFilter);
-                    if (!filtered.length) return <div style={{ textAlign: "center", color: "#4a5868", fontSize: 13, padding: "20px 0" }}>Keine Daten</div>;
-                    const maxLen = Math.max(...filtered.map(c => c.length));
-                    const buckets = {};
-                    for (let i = 0; i <= Math.ceil(maxLen / 5) * 5; i += 5) {
-                      buckets[i] = 0;
-                    }
-                    filtered.forEach(c => {
-                      const b = Math.floor(c.length / 5) * 5;
-                      buckets[b] = (buckets[b] || 0) + 1;
-                    });
-                    const chartData = Object.entries(buckets).map(([key, count]) => ({ range: `${key}–${parseInt(key) + 5}`, count }));
-                    return (
-                      <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#2a3040" />
-                          <XAxis dataKey="range" tick={{ fill: "#7a8898", fontSize: 9, fontFamily: "Georgia, serif" }} />
-                          <YAxis tick={{ fill: "#7a8898", fontSize: 10, fontFamily: "Georgia, serif" }} />
-                          <Tooltip contentStyle={{ background: "#1a2535", border: "1px solid #c8a060", borderRadius: 8, color: "#e8d8b0", fontFamily: "Georgia, serif", fontSize: 12 }} />
-                          <Line type="monotone" dataKey="count" stroke="#c8a060" strokeWidth={2.5} dot={{ fill: "#c8a060", r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} name="Fische" />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    );
-                  })()}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                </Card>
+              )}
+
+              {/* Size distribution */}
+              <Card title="📏 Größenverteilung (5cm-Schritte)">
+                <select value={statsFilter} onChange={e => setStatsFilter(e.target.value)}
+                  style={{ background: "#0d1117", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "6px 10px", fontSize: 12, width: "100%", fontFamily: "Georgia, serif", marginBottom: 12 }}>
+                  <option value="all">Alle Fischarten</option>
+                  {FISH_SPECIES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+                {sizeData.length === 0
+                  ? <div style={{ textAlign: "center", color: "#4a5868", fontSize: 13, padding: "20px 0" }}>Keine Daten</div>
+                  : <BarChart data={sizeData} />
+                }
+              </Card>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ADD CATCH MODAL */}
