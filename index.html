@@ -8,54 +8,19 @@
   <meta name="apple-mobile-web-app-title" content="Fangtagebuch"/>
   <meta name="theme-color" content="#0d1117"/>
   <title>Fangtagebuch · Fischerverein Ultental</title>
-
-  <!-- PWA Manifest inline -->
-  <script>
-    const manifest = {
-      name: "Fangtagebuch Ultental",
-      short_name: "Fangtagebuch",
-      description: "Fischerverein Ultental – Persönliches Fangtagebuch",
-      start_url: "./",
-      display: "standalone",
-      background_color: "#0d1117",
-      theme_color: "#0d1117",
-      orientation: "portrait",
-      icons: [
-        { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230d1117'/%3E%3Ctext x='50%25' y='55%25' font-size='120' text-anchor='middle' dominant-baseline='middle'%3E🎣%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
-        { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230d1117'/%3E%3Ctext x='50%25' y='55%25' font-size='320' text-anchor='middle' dominant-baseline='middle'%3E🎣%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
-      ]
-    };
-    const blob = new Blob([JSON.stringify(manifest)], {type: "application/json"});
-    const manifestURL = URL.createObjectURL(blob);
-    document.addEventListener("DOMContentLoaded", () => {
-      const link = document.createElement("link");
-      link.rel = "manifest";
-      link.href = manifestURL;
-      document.head.appendChild(link);
-    });
-  </script>
-
-  <!-- Apple touch icon via SVG data URL -->
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='28' fill='%230d1117'/%3E%3Ctext x='50%25' y='55%25' font-size='110' text-anchor='middle' dominant-baseline='middle'%3E🎣%3C/text%3E%3C/svg%3E"/>
-
-  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
-
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html { height: 100%; background: #0d1117; }
     body { height: 100%; background: #0d1117; overflow: auto; -webkit-overflow-scrolling: touch; }
     #root { min-height: 100%; }
-    /* Custom scrollbar */
+    div { -webkit-overflow-scrolling: touch; }
     ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #3a4858; border-radius: 3px; }
-    /* Safe area insets for iPhone notch/home indicator */
-    #root > div { padding-bottom: env(safe-area-inset-bottom); }
-    input, select, textarea { font-size: 16px !important; } /* prevent iOS zoom */
-    /* Ensure all scrollable divs work on iOS Safari */
-    div { -webkit-overflow-scrolling: touch; }
+    input, select, textarea { font-size: 16px !important; }
   </style>
 </head>
 <body>
@@ -68,131 +33,57 @@
   <!-- Recharts -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.5.0/Recharts.min.js"></script>
 
-  <!-- Babel standalone for JSX transpilation -->
+  <!-- Babel for JSX -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
 
-  <!-- Destructure React hooks globally so JSX code can use them without imports -->
+  <!-- Globals -->
   <script>
     const { useState, useEffect, useCallback, useRef, useMemo } = React;
-    // Recharts globals with fallback stubs if CDN fails
-    const _RC = window.Recharts || {};
-    const PieChart = _RC.PieChart || (() => null);
-    const Pie = _RC.Pie || (() => null);
-    const Cell = _RC.Cell || (() => null);
-    const LineChart = _RC.LineChart || (() => null);
-    const Line = _RC.Line || (() => null);
-    const XAxis = _RC.XAxis || (() => null);
-    const YAxis = _RC.YAxis || (() => null);
-    const CartesianGrid = _RC.CartesianGrid || (() => null);
-    const Tooltip = _RC.Tooltip || (() => null);
-    const ResponsiveContainer = _RC.ResponsiveContainer || (({children}) => children);
-    const Legend = _RC.Legend || (() => null);
+    const { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = (window.Recharts || {});
   </script>
 
-  <!-- App Code -->
+  <!-- App -->
   <script type="text/babel" data-presets="react">
 
-// ─── STORAGE ───────────────────────────────────────────────────────────────────
+// ─── STORAGE + SUPABASE ───────────────────────────────────────────────────────
 const STORAGE_KEY = "fischerei-ulten-catches";
-
-// ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://ovkewldjwtagrpivkgyc.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92a2V3bGRqd3RhZ3JwaXZrZ3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTQ4NjksImV4cCI6MjA4ODIzMDg2OX0.JSS4hWk1Jt64Ul8PPHRe06ldbI9jsmrN1lFS8h809Bk";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92a2V3bGRqd3RhZ3JwaXZrZ3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTQ4NjksImV4cCI6MjA4ODIzMDg2OX0.JSS4hWk1Jt64Ul8PPHRe06ldbI9jsmrN1lFS8h809Bk";
 
-async function sbFetch(path, options = {}) {
+async function sbFetch(path, opts = {}) {
   const res = await fetch(SUPABASE_URL + path, {
-    ...options,
-    headers: {
-      "apikey": SUPABASE_ANON,
-      "Authorization": "Bearer " + SUPABASE_ANON,
-      "Content-Type": "application/json",
-      "Prefer": options.prefer || "",
-      ...options.headers,
-    }
+    ...opts,
+    headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY, "Content-Type": "application/json", "Prefer": opts.prefer || "", ...(opts.headers||{}) }
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
+  if (!res.ok) throw new Error(await res.text());
   return res.status === 204 ? null : res.json();
 }
 
 async function loadCatches() {
   try {
-    // Try Supabase first
     const rows = await sbFetch("/rest/v1/catches?select=*&order=date.desc");
-    const catches = rows.map(r => ({
-      id: r.id,
-      species: r.species,
-      length: r.length,
-      water: r.water,
-      weight: r.weight,
-      bait: r.bait,
-      photo: r.photo,
-      date: r.date,
-      season: r.season,
-      angler: r.angler || "Unbekannt",
-    }));
-    // Also cache locally as backup
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catches)); } catch {}
-    return catches;
-  } catch (e) {
-    console.warn("Supabase offline, using local cache:", e.message);
-    try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch { return []; }
+    const data = rows.map(r => ({ id: r.id, species: r.species, length: r.length, water: r.water, weight: r.weight, bait: r.bait, photo: r.photo, date: r.date, season: r.season, angler: r.angler || "" }));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+    return data;
+  } catch(e) {
+    console.warn("Supabase offline:", e.message);
+    try { const d = localStorage.getItem(STORAGE_KEY); return d ? JSON.parse(d) : []; } catch { return []; }
   }
 }
 
 async function saveCatches(catches) {
-  // Always update local cache immediately
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catches)); } catch {}
-  // Sync to Supabase in background – upsert all
   try {
-    const rows = catches.map(c => ({
-      id: c.id,
-      species: c.species,
-      length: c.length,
-      water: c.water,
-      weight: c.weight || null,
-      bait: c.bait || null,
-      photo: c.photo || null,
-      date: c.date,
-      season: c.season,
-      angler: c.angler || "Unbekannt",
-    }));
     await sbFetch("/rest/v1/catches", {
-      method: "POST",
-      prefer: "resolution=merge-duplicates",
-      body: JSON.stringify(rows),
+      method: "POST", prefer: "resolution=merge-duplicates",
+      body: JSON.stringify(catches.map(c => ({ id: c.id, species: c.species, length: c.length, water: c.water, weight: c.weight||null, bait: c.bait||null, photo: c.photo||null, date: c.date, season: c.season, angler: c.angler||"" })))
     });
-  } catch (e) {
-    console.warn("Supabase sync failed:", e.message);
-  }
+  } catch(e) { console.warn("Supabase save failed:", e.message); }
 }
 
-async function deleteCatchFromDB(id) {
-  try {
-    await sbFetch("/rest/v1/catches?id=eq." + id, { method: "DELETE" });
-  } catch (e) {
-    console.warn("Delete from Supabase failed:", e.message);
-  }
+async function deleteCatchDB(id) {
+  try { await sbFetch("/rest/v1/catches?id=eq." + id, { method: "DELETE" }); } catch {}
 }
-
-// ─── RECHARTS ─────────────────────────────────────────────────────────────────
-// Recharts loaded via globals above
-const PieChart = _RC.PieChart || (({children}) => null);
-const Pie = _RC.Pie || (({children}) => null);
-const Cell = _RC.Cell || (() => null);
-const LineChart = _RC.LineChart || (({children}) => null);
-const Line = _RC.Line || (() => null);
-const XAxis = _RC.XAxis || (() => null);
-const YAxis = _RC.YAxis || (() => null);
-const CartesianGrid = _RC.CartesianGrid || (() => null);
-const Tooltip = _RC.Tooltip || (() => null);
-const ResponsiveContainer = _RC.ResponsiveContainer || (({children, width, height}) => React.createElement('div', {style:{width,height}}, children));
-const Legend = _RC.Legend || (() => null);
 
 // ─── FISH DATA ─────────────────────────────────────────────────────────────────
 const FISH_SPECIES = [
@@ -2021,8 +1912,8 @@ function App() {
   const [useCustom, setUseCustom] = useState(false);
   const [anglerName, setAnglerName] = useState(() => { try { return localStorage.getItem("fischerei-angler") || ""; } catch { return ""; } });
   const [anglerInput, setAnglerInput] = useState("");
-  const [statsFilter, setStatsFilter] = useState("all");
   const [anglerFilter, setAnglerFilter] = useState("all");
+  const [statsFilter, setStatsFilter] = useState("all");
   const [ultraRealistic, setUltraRealistic] = useState(false);
   const [form, setForm] = useState({ length: "", water: ULTEN_WATERS[0], weight: "", bait: "" });
   const [formError, setFormError] = useState("");
@@ -2083,32 +1974,27 @@ function App() {
     </div>
   );
 
-  // ── SETUP SCREEN ────────────────────────────────────────────────────────────
-  if (!anglerName) {
-    return (
-      <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #0d1117 0%, #0d1a2a 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, fontFamily: "Georgia, serif" }}>
-        <div style={{ fontSize: 64, marginBottom: 24 }}>🎣</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: "#e8d8b0", marginBottom: 8, fontFamily: "'Libre Baskerville', Georgia, serif", textAlign: "center" }}>Fangtagebuch</div>
-        <div style={{ fontSize: 13, color: "#7a8898", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 48, textAlign: "center" }}>Fischerverein Ultental</div>
-        <div style={{ background: "#161e28", borderRadius: 16, padding: 28, width: "100%", maxWidth: 340, border: "1px solid #2a3848" }}>
-          <div style={{ fontSize: 15, color: "#c8d8e8", marginBottom: 6 }}>Wie heißt du?</div>
-          <div style={{ fontSize: 12, color: "#5a6878", marginBottom: 16 }}>Dein Name wird bei jedem Fang gespeichert.</div>
-          <input
-            value={anglerInput}
-            onChange={e => setAnglerInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && anglerInput.trim()) { const n = anglerInput.trim(); localStorage.setItem("fischerei-angler", n); setAnglerName(n); }}}
-            placeholder="z.B. Stefan"
-            style={{ width: "100%", background: "#0d1520", border: "1px solid #3a5070", borderRadius: 10, padding: "12px 14px", color: "#e8d8b0", fontSize: 16, fontFamily: "Georgia, serif", marginBottom: 16, outline: "none" }}
-            autoFocus
-          />
-          <button
-            onClick={() => { if (anglerInput.trim()) { const n = anglerInput.trim(); localStorage.setItem("fischerei-angler", n); setAnglerName(n); }}}
-            style={{ width: "100%", background: anglerInput.trim() ? "linear-gradient(135deg, #c8a060, #a07840)" : "#2a3848", border: "none", borderRadius: 10, padding: "13px 0", color: anglerInput.trim() ? "#0d1117" : "#5a6878", fontSize: 15, fontWeight: 700, cursor: anglerInput.trim() ? "pointer" : "default" }}
-          >Los geht's →</button>
-        </div>
+  // Setup screen
+  if (!anglerName) return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#0d1117,#0d1a2a)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, fontFamily: "Georgia,serif" }}>
+      <div style={{ fontSize: 64, marginBottom: 20 }}>🎣</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: "#e8d8b0", marginBottom: 6, fontFamily: "'Libre Baskerville',Georgia,serif", textAlign: "center" }}>Fangtagebuch</div>
+      <div style={{ fontSize: 12, color: "#7a8898", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 40 }}>Fischerverein Ultental</div>
+      <div style={{ background: "#161e28", borderRadius: 16, padding: 28, width: "100%", maxWidth: 340, border: "1px solid #2a3848" }}>
+        <div style={{ fontSize: 15, color: "#c8d8e8", marginBottom: 6 }}>Wie heißt du?</div>
+        <div style={{ fontSize: 12, color: "#5a6878", marginBottom: 16 }}>Dein Name wird bei jedem Fang gespeichert.</div>
+        <input value={anglerInput} onChange={e => setAnglerInput(e.target.value)}
+          onKeyDown={e => { if (e.key==="Enter" && anglerInput.trim()) { const n=anglerInput.trim(); localStorage.setItem("fischerei-angler",n); setAnglerName(n); }}}
+          placeholder="z.B. Stefan" autoFocus
+          style={{ width: "100%", background: "#0d1520", border: "1px solid #3a5070", borderRadius: 10, padding: "12px 14px", color: "#e8d8b0", fontSize: 16, fontFamily: "Georgia,serif", marginBottom: 16, outline: "none", display: "block" }}
+        />
+        <button onClick={() => { if (anglerInput.trim()) { const n=anglerInput.trim(); localStorage.setItem("fischerei-angler",n); setAnglerName(n); }}}
+          style={{ width: "100%", background: anglerInput.trim() ? "linear-gradient(135deg,#c8a060,#a07840)" : "#2a3848", border: "none", borderRadius: 10, padding: "13px 0", color: anglerInput.trim() ? "#0d1117" : "#5a6878", fontSize: 15, fontWeight: 700, cursor: anglerInput.trim() ? "pointer" : "default" }}>
+          Los geht's →
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: "#0d1117", color: "#e8e0d0", fontFamily: "'Crimson Pro', Georgia, 'Times New Roman', serif", display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto", position: "relative" }}>
@@ -2133,8 +2019,7 @@ function App() {
               style={{ background: "none", border: "none", color: "#c8a060", fontSize: 22, padding: "0 4px 0 0", lineHeight: 1 }}>←</button>
           )}
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "#7a8898", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "Georgia, serif", cursor: "pointer" }} onClick={() => { if(confirm("Namen ändern? Aktuell: " + anglerName)) { const n = prompt("Neuer Name:", anglerName); if(n && n.trim()) { localStorage.setItem("fischerei-angler", n.trim()); setAnglerName(n.trim()); }}}}
-              title="Tippe um Namen zu ändern">
+            <div style={{ fontSize: 11, color: "#7a8898", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "Georgia, serif", cursor: "pointer" }} title="Tippen um Namen zu ändern" onClick={() => { const n=prompt("Dein Name:",anglerName); if(n&&n.trim()){localStorage.setItem("fischerei-angler",n.trim());setAnglerName(n.trim());} }}>
               👤 {anglerName} · {currentSeason}
             </div>
             <div style={{ fontSize: 20, fontWeight: 700, color: "#e8d8b0", lineHeight: 1.2, fontFamily: "'Libre Baskerville', Georgia, serif" }}>
@@ -2176,20 +2061,16 @@ function App() {
         {/* GRID VIEW */}
         {view === "grid" && (
           <div style={{ padding: "16px 12px" }}>
-            {/* Angler filter tabs – only shown when >1 angler exists */}
             {(() => {
-              const allAnglers = [...new Set(catches.map(c => c.angler).filter(Boolean))];
-              if (allAnglers.length <= 1) return null;
-              return (
-                <div style={{ display: "flex", gap: 8, marginBottom: 14, overflowX: "auto", paddingBottom: 2 }}>
-                  {["all", ...allAnglers].map(a => (
-                    <button key={a} onClick={() => setAnglerFilter(a)}
-                      style={{ flexShrink: 0, background: anglerFilter === a ? "linear-gradient(135deg,#c8a060,#a07840)" : "#161e28", border: anglerFilter === a ? "none" : "1px solid #2a3848", borderRadius: 20, padding: "6px 16px", color: anglerFilter === a ? "#0d1117" : "#8898a8", fontSize: 12, fontWeight: anglerFilter === a ? 700 : 400, cursor: "pointer", fontFamily: "Georgia,serif" }}>
-                      {a === "all" ? "🎣 Alle" : "👤 " + a}
-                    </button>
-                  ))}
-                </div>
-              );
+              const allAnglers = [...new Set(catches.map(c=>c.angler).filter(Boolean))];
+              if (allAnglers.length < 2) return null;
+              return <div style={{ display:"flex", gap:8, marginBottom:14, overflowX:"auto" }}>
+                {["all",...allAnglers].map(a=>(
+                  <button key={a} onClick={()=>setAnglerFilter(a)} style={{ flexShrink:0, background: anglerFilter===a ? "linear-gradient(135deg,#c8a060,#a07840)" : "#161e28", border: anglerFilter===a ? "none" : "1px solid #2a3848", borderRadius:20, padding:"6px 16px", color: anglerFilter===a ? "#0d1117" : "#8898a8", fontSize:12, fontWeight: anglerFilter===a?700:400, cursor:"pointer", fontFamily:"Georgia,serif" }}>
+                    {a==="all" ? "🎣 Alle" : "👤 "+a}
+                  </button>
+                ))}
+              </div>;
             })()}
             <div style={{ fontSize: 12, color: "#7a8898", marginBottom: 12, textAlign: "center", letterSpacing: "0.08em" }}>
               {seasonCatches.length} Fische gefangen · Saison {currentSeason}
@@ -2286,9 +2167,8 @@ function App() {
                               📍 {c.water}
                               {c.bait && <span style={{ marginLeft: 8 }}>🪝 {c.bait}</span>}
                             </div>
-                            <div style={{ fontSize: 11, color: "#4a5868", marginTop: 2, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <div style={{ fontSize: 11, color: "#4a5868", marginTop: 2 }}>
                               {new Date(c.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
-                              {c.angler && <span style={{ color: "#c8a060", fontSize: 10, background: "#1a2818", border: "1px solid #3a5020", borderRadius: 8, padding: "1px 7px" }}>👤 {c.angler}</span>}
                             </div>
                           </div>
                         </div>
@@ -2677,33 +2557,9 @@ function App() {
 }
 
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(React.createElement(App));
+const domRoot = ReactDOM.createRoot(document.getElementById("root"));
+domRoot.render(React.createElement(App));
 
-  </script>
-
-  <!-- Service Worker for offline use -->
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        // Inline service worker as blob
-        const swCode = `
-          const CACHE = "fangtagebuch-v1";
-          const ASSETS = ["./"];
-          self.addEventListener("install", e => {
-            e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
-          });
-          self.addEventListener("fetch", e => {
-            e.respondWith(
-              caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match("./")))
-            );
-          });
-        `;
-        const blob = new Blob([swCode], {type: "application/javascript"});
-        navigator.serviceWorker.register(URL.createObjectURL(blob))
-          .catch(() => {}); // silent fail if SW blocked
-      });
-    }
   </script>
 </body>
 </html>
