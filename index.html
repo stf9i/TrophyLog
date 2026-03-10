@@ -2227,15 +2227,17 @@ function App() {
 
           // Compute stats
           const allAnglersList = [...new Set(catches.map(c => c.angler).filter(Boolean))];
-          const avgLen = (seasonCatches.reduce((s, c) => s + c.length, 0) / seasonCatches.length).toFixed(1);
-          const maxCatch = seasonCatches.reduce((b, c) => c.length > b.length ? c : b, seasonCatches[0]);
-          const speciesData = FISH_SPECIES.map(f => ({ label: f.name.split(" ")[0], value: seasonCatches.filter(c => c.species === f.id).length, color: f.color })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+          const [statsAnglerFilter, setStatsAnglerFilter] = useState("all");
+          const baseCatches = statsAnglerFilter === "all" ? seasonCatches : seasonCatches.filter(c => c.angler === statsAnglerFilter);
+          const avgLen = baseCatches.length ? (baseCatches.reduce((s, c) => s + c.length, 0) / baseCatches.length).toFixed(1) : "-";
+          const maxCatch = baseCatches.length ? baseCatches.reduce((b, c) => c.length > b.length ? c : b, baseCatches[0]) : null;
+          const speciesData = FISH_SPECIES.map(f => ({ label: f.name.split(" ")[0], value: baseCatches.filter(c => c.species === f.id).length, color: f.color })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
           const waterCounts = {};
-          seasonCatches.forEach(c => { waterCounts[c.water] = (waterCounts[c.water] || 0) + 1; });
+          baseCatches.forEach(c => { waterCounts[c.water] = (waterCounts[c.water] || 0) + 1; });
           const waterData = Object.entries(waterCounts).sort((a,b) => b[1]-a[1]).map(([name, value], i) => ({ label: name.split(" ").slice(0,2).join(" "), value, color: `hsl(${200 + i * 30}, 50%, ${48 + i * 3}%)` }));
 
           // Size buckets
-          const filtered = statsFilter === "all" ? seasonCatches : seasonCatches.filter(c => c.species === statsFilter);
+          const filtered = statsFilter === "all" ? baseCatches : baseCatches.filter(c => c.species === statsFilter);
           const buckets = {};
           filtered.forEach(c => { const b = Math.floor(c.length / 5) * 5; buckets[b] = (buckets[b] || 0) + 1; });
           const sizeData = Object.entries(buckets).sort((a,b) => +a[0] - +b[0]).map(([key, value]) => ({ label: `${key}–${+key+5}`, value, color: "#c8a060" }));
@@ -2245,15 +2247,28 @@ function App() {
 
           return (
             <div style={{ padding: "16px" }}>
+
+              {/* Angler filter tabs */}
+              {allAnglersList.length > 1 && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto" }}>
+                  {["all", ...allAnglersList].map(a => (
+                    <button key={a} onClick={() => setStatsAnglerFilter(a)}
+                      style={{ flexShrink: 0, background: statsAnglerFilter === a ? "linear-gradient(135deg,#c8a060,#a07840)" : "#161e28", border: statsAnglerFilter === a ? "none" : "1px solid #2a3848", borderRadius: 20, padding: "6px 16px", color: statsAnglerFilter === a ? "#0d1117" : "#8898a8", fontSize: 12, fontWeight: statsAnglerFilter === a ? 700 : 400, cursor: "pointer", fontFamily: "Georgia,serif" }}>
+                      {a === "all" ? "🎣 Alle" : "👤 " + a}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div style={{ fontSize: 12, color: "#7a8898", textAlign: "center", marginBottom: 16, letterSpacing: "0.08em" }}>
-                Saison {currentSeason} · {seasonCatches.length} Fische total
+                Saison {currentSeason} · {baseCatches.length} Fische {statsAnglerFilter !== "all" ? "· 👤 " + statsAnglerFilter : "total"}
               </div>
 
               {/* Summary */}
               <SummaryRow items={[
-                { value: seasonCatches.length, label: "FÄNGE" },
+                { value: baseCatches.length, label: "FÄNGE" },
                 { value: avgLen + " cm", label: "Ø LÄNGE" },
-                { value: maxCatch.length + " cm", label: "REKORD" },
+                { value: maxCatch ? maxCatch.length + " cm" : "-", label: "REKORD" },
               ]} />
 
               {/* Species */}
@@ -2425,6 +2440,7 @@ function App() {
           if (gf.season !== "all" && c.season !== parseInt(gf.season)) return false;
           if (gf.minLen && c.length < parseFloat(gf.minLen)) return false;
           if (gf.maxLen && c.length > parseFloat(gf.maxLen)) return false;
+          if (gf.angler && gf.angler !== "all" && c.angler !== gf.angler) return false;
           return true;
         });
         // sort
@@ -2441,21 +2457,38 @@ function App() {
         for (let y = 2026; y <= Math.max(currentSeason + 4, 2030); y++) seasonList.push(y);
 
         return (
-          <div style={{ position: "fixed", inset: 0, top: 72, bottom: 58, maxWidth: 480, margin: "0 auto", overflowY: "auto", background: "#0d1117" }}>
-            {/* Filter bar – sticky inside the scrollable area, below the app header */}
-            <div style={{ background: "#0d1117", borderBottom: "1px solid #2a3040", padding: "10px 14px 12px", position: "sticky", top: 0, zIndex: 50 }}>
+          <div style={{ position: "fixed", inset: 0, top: 72, bottom: 58, maxWidth: 480, margin: "0 auto", overflowY: "auto", overflowX: "hidden", background: "#0d1117" }}>
+            {/* Filter bar – sticky */}
+            <div style={{ background: "#0d1117", borderBottom: "1px solid #2a3040", padding: "10px 12px 12px", position: "sticky", top: 0, zIndex: 50, overflowX: "hidden" }}>
               <div style={{ fontSize: 11, color: "#c8a060", letterSpacing: "0.12em", textTransform: "uppercase", fontFamily: "Georgia, serif", marginBottom: 8 }}>
                 Galerie · {withPhoto.length} Fotos · {allFiltered.length} Fänge
               </div>
+
+              {/* Angler filter tabs – only if >1 angler */}
+              {(() => {
+                const allAnglersList = [...new Set(catches.map(c => c.angler).filter(Boolean))];
+                if (allAnglersList.length < 2) return null;
+                return (
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                    {["all", ...allAnglersList].map(a => (
+                      <button key={a} onClick={() => setGalleryFilter(f => ({...f, angler: a}))}
+                        style={{ background: (gf.angler||"all") === a ? "linear-gradient(135deg,#c8a060,#a07840)" : "#161e28", border: (gf.angler||"all") === a ? "none" : "1px solid #2a3848", borderRadius: 20, padding: "5px 14px", color: (gf.angler||"all") === a ? "#0d1117" : "#8898a8", fontSize: 11, fontWeight: (gf.angler||"all") === a ? 700 : 400, cursor: "pointer", fontFamily: "Georgia,serif" }}>
+                        {a === "all" ? "🎣 Alle" : "👤 " + a}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {/* Row 1: Species + Season */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 7 }}>
                 <select value={gf.species} onChange={e => setGalleryFilter(f=>({...f, species: e.target.value}))}
-                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}>
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 8px", fontSize: 11, fontFamily: "Georgia, serif", width: "100%", minWidth: 0 }}>
                   <option value="all">Alle Arten</option>
                   {FISH_SPECIES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
                 <select value={gf.season} onChange={e => setGalleryFilter(f=>({...f, season: e.target.value}))}
-                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}>
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 8px", fontSize: 11, fontFamily: "Georgia, serif", width: "100%", minWidth: 0 }}>
                   <option value="all">Alle Saisons</option>
                   {seasonList.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
@@ -2464,12 +2497,12 @@ function App() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 8 }}>
                 <input type="number" placeholder="Min cm" value={gf.minLen}
                   onChange={e => setGalleryFilter(f=>({...f, minLen: e.target.value}))}
-                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}/>
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 8px", fontSize: 11, fontFamily: "Georgia, serif", width: "100%", minWidth: 0 }}/>
                 <input type="number" placeholder="Max cm" value={gf.maxLen}
                   onChange={e => setGalleryFilter(f=>({...f, maxLen: e.target.value}))}
-                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}/>
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 8px", fontSize: 11, fontFamily: "Georgia, serif", width: "100%", minWidth: 0 }}/>
                 <select value={gf.sort} onChange={e => setGalleryFilter(f=>({...f, sort: e.target.value}))}
-                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 10px", fontSize: 11, fontFamily: "Georgia, serif" }}>
+                  style={{ background: "#161e28", border: "1px solid #3a4858", color: "#c8d8e8", borderRadius: 8, padding: "7px 8px", fontSize: 11, fontFamily: "Georgia, serif", width: "100%", minWidth: 0 }}>
                   <option value="newest">Neueste zuerst</option>
                   <option value="oldest">Älteste zuerst</option>
                   <option value="biggest">Größte zuerst</option>
