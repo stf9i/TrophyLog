@@ -66,7 +66,7 @@
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 
   <!-- Recharts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.5.0/Recharts.min.js"></script>
 
   <!-- Babel standalone for JSX transpilation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
@@ -74,8 +74,19 @@
   <!-- Destructure React hooks globally so JSX code can use them without imports -->
   <script>
     const { useState, useEffect, useCallback, useRef, useMemo } = React;
-    // Make Recharts components available globally
-    const { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } = Recharts;
+    // Recharts globals with fallback stubs if CDN fails
+    const _RC = window.Recharts || {};
+    const PieChart = _RC.PieChart || (() => null);
+    const Pie = _RC.Pie || (() => null);
+    const Cell = _RC.Cell || (() => null);
+    const LineChart = _RC.LineChart || (() => null);
+    const Line = _RC.Line || (() => null);
+    const XAxis = _RC.XAxis || (() => null);
+    const YAxis = _RC.YAxis || (() => null);
+    const CartesianGrid = _RC.CartesianGrid || (() => null);
+    const Tooltip = _RC.Tooltip || (() => null);
+    const ResponsiveContainer = _RC.ResponsiveContainer || (({children}) => children);
+    const Legend = _RC.Legend || (() => null);
   </script>
 
   <!-- App Code -->
@@ -168,6 +179,20 @@ async function deleteCatchFromDB(id) {
     console.warn("Delete from Supabase failed:", e.message);
   }
 }
+
+// ─── RECHARTS ─────────────────────────────────────────────────────────────────
+// Recharts loaded via globals above
+const PieChart = _RC.PieChart || (({children}) => null);
+const Pie = _RC.Pie || (({children}) => null);
+const Cell = _RC.Cell || (() => null);
+const LineChart = _RC.LineChart || (({children}) => null);
+const Line = _RC.Line || (() => null);
+const XAxis = _RC.XAxis || (() => null);
+const YAxis = _RC.YAxis || (() => null);
+const CartesianGrid = _RC.CartesianGrid || (() => null);
+const Tooltip = _RC.Tooltip || (() => null);
+const ResponsiveContainer = _RC.ResponsiveContainer || (({children, width, height}) => React.createElement('div', {style:{width,height}}, children));
+const Legend = _RC.Legend || (() => null);
 
 // ─── FISH DATA ─────────────────────────────────────────────────────────────────
 const FISH_SPECIES = [
@@ -1994,6 +2019,8 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [customWater, setCustomWater] = useState("");
   const [useCustom, setUseCustom] = useState(false);
+  const [anglerName, setAnglerName] = useState(() => { try { return localStorage.getItem("fischerei-angler") || ""; } catch { return ""; } });
+  const [anglerInput, setAnglerInput] = useState("");
   const [statsFilter, setStatsFilter] = useState("all");
   const [anglerFilter, setAnglerFilter] = useState("all");
   const [ultraRealistic, setUltraRealistic] = useState(false);
