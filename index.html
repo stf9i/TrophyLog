@@ -120,6 +120,7 @@ async function loadCatches() {
       photo: r.photo,
       date: r.date,
       season: r.season,
+      angler: r.angler || "Unbekannt",
     }));
     // Also cache locally as backup
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catches)); } catch {}
@@ -148,6 +149,7 @@ async function saveCatches(catches) {
       photo: c.photo || null,
       date: c.date,
       season: c.season,
+      angler: c.angler || "Unbekannt",
     }));
     await sbFetch("/rest/v1/catches", {
       method: "POST",
@@ -1993,6 +1995,7 @@ function App() {
   const [customWater, setCustomWater] = useState("");
   const [useCustom, setUseCustom] = useState(false);
   const [statsFilter, setStatsFilter] = useState("all");
+  const [anglerFilter, setAnglerFilter] = useState("all");
   const [ultraRealistic, setUltraRealistic] = useState(false);
   const [form, setForm] = useState({ length: "", water: ULTEN_WATERS[0], weight: "", bait: "" });
   const [formError, setFormError] = useState("");
@@ -2027,6 +2030,7 @@ function App() {
       photo: formPhoto || null,
       date: new Date().toISOString(),
       season: currentSeason,
+      angler: anglerName,
     };
     const updated = [newCatch, ...catches];
     setCatches(updated);
@@ -2040,7 +2044,8 @@ function App() {
   }, [form, catches, selectedSpecies, useCustom, customWater, currentSeason, formPhoto]);
 
   const getBestCatch = (speciesId) => {
-    const sc = seasonCatches.filter(c => c.species === speciesId);
+    const base = anglerFilter === "all" ? seasonCatches : seasonCatches.filter(c => c.angler === anglerFilter);
+    const sc = base.filter(c => c.species === speciesId);
     if (!sc.length) return null;
     return sc.reduce((best, c) => c.length > best.length ? c : best);
   };
@@ -2050,6 +2055,33 @@ function App() {
       Lade Fangdaten…
     </div>
   );
+
+  // ── SETUP SCREEN ────────────────────────────────────────────────────────────
+  if (!anglerName) {
+    return (
+      <div style={{ minHeight: "100vh", background: "linear-gradient(160deg, #0d1117 0%, #0d1a2a 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, fontFamily: "Georgia, serif" }}>
+        <div style={{ fontSize: 64, marginBottom: 24 }}>🎣</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: "#e8d8b0", marginBottom: 8, fontFamily: "'Libre Baskerville', Georgia, serif", textAlign: "center" }}>Fangtagebuch</div>
+        <div style={{ fontSize: 13, color: "#7a8898", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 48, textAlign: "center" }}>Fischerverein Ultental</div>
+        <div style={{ background: "#161e28", borderRadius: 16, padding: 28, width: "100%", maxWidth: 340, border: "1px solid #2a3848" }}>
+          <div style={{ fontSize: 15, color: "#c8d8e8", marginBottom: 6 }}>Wie heißt du?</div>
+          <div style={{ fontSize: 12, color: "#5a6878", marginBottom: 16 }}>Dein Name wird bei jedem Fang gespeichert.</div>
+          <input
+            value={anglerInput}
+            onChange={e => setAnglerInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && anglerInput.trim()) { const n = anglerInput.trim(); localStorage.setItem("fischerei-angler", n); setAnglerName(n); }}}
+            placeholder="z.B. Stefan"
+            style={{ width: "100%", background: "#0d1520", border: "1px solid #3a5070", borderRadius: 10, padding: "12px 14px", color: "#e8d8b0", fontSize: 16, fontFamily: "Georgia, serif", marginBottom: 16, outline: "none" }}
+            autoFocus
+          />
+          <button
+            onClick={() => { if (anglerInput.trim()) { const n = anglerInput.trim(); localStorage.setItem("fischerei-angler", n); setAnglerName(n); }}}
+            style={{ width: "100%", background: anglerInput.trim() ? "linear-gradient(135deg, #c8a060, #a07840)" : "#2a3848", border: "none", borderRadius: 10, padding: "13px 0", color: anglerInput.trim() ? "#0d1117" : "#5a6878", fontSize: 15, fontWeight: 700, cursor: anglerInput.trim() ? "pointer" : "default" }}
+          >Los geht's →</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#0d1117", color: "#e8e0d0", fontFamily: "'Crimson Pro', Georgia, 'Times New Roman', serif", display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto", position: "relative" }}>
@@ -2074,8 +2106,9 @@ function App() {
               style={{ background: "none", border: "none", color: "#c8a060", fontSize: 22, padding: "0 4px 0 0", lineHeight: 1 }}>←</button>
           )}
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "#7a8898", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "Georgia, serif" }}>
-              Fischerverein Ultental · {currentSeason}
+            <div style={{ fontSize: 11, color: "#7a8898", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "Georgia, serif", cursor: "pointer" }} onClick={() => { if(confirm("Namen ändern? Aktuell: " + anglerName)) { const n = prompt("Neuer Name:", anglerName); if(n && n.trim()) { localStorage.setItem("fischerei-angler", n.trim()); setAnglerName(n.trim()); }}}}
+              title="Tippe um Namen zu ändern">
+              👤 {anglerName} · {currentSeason}
             </div>
             <div style={{ fontSize: 20, fontWeight: 700, color: "#e8d8b0", lineHeight: 1.2, fontFamily: "'Libre Baskerville', Georgia, serif" }}>
               {view === "species" ? selectedSpecies?.name : view === "stats" ? "Statistiken" : "Fangtagebuch"}
@@ -2116,6 +2149,21 @@ function App() {
         {/* GRID VIEW */}
         {view === "grid" && (
           <div style={{ padding: "16px 12px" }}>
+            {/* Angler filter tabs – only shown when >1 angler exists */}
+            {(() => {
+              const allAnglers = [...new Set(catches.map(c => c.angler).filter(Boolean))];
+              if (allAnglers.length <= 1) return null;
+              return (
+                <div style={{ display: "flex", gap: 8, marginBottom: 14, overflowX: "auto", paddingBottom: 2 }}>
+                  {["all", ...allAnglers].map(a => (
+                    <button key={a} onClick={() => setAnglerFilter(a)}
+                      style={{ flexShrink: 0, background: anglerFilter === a ? "linear-gradient(135deg,#c8a060,#a07840)" : "#161e28", border: anglerFilter === a ? "none" : "1px solid #2a3848", borderRadius: 20, padding: "6px 16px", color: anglerFilter === a ? "#0d1117" : "#8898a8", fontSize: 12, fontWeight: anglerFilter === a ? 700 : 400, cursor: "pointer", fontFamily: "Georgia,serif" }}>
+                      {a === "all" ? "🎣 Alle" : "👤 " + a}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
             <div style={{ fontSize: 12, color: "#7a8898", marginBottom: 12, textAlign: "center", letterSpacing: "0.08em" }}>
               {seasonCatches.length} Fische gefangen · Saison {currentSeason}
             </div>
@@ -2211,8 +2259,9 @@ function App() {
                               📍 {c.water}
                               {c.bait && <span style={{ marginLeft: 8 }}>🪝 {c.bait}</span>}
                             </div>
-                            <div style={{ fontSize: 11, color: "#4a5868", marginTop: 2 }}>
+                            <div style={{ fontSize: 11, color: "#4a5868", marginTop: 2, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                               {new Date(c.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                              {c.angler && <span style={{ color: "#c8a060", fontSize: 10, background: "#1a2818", border: "1px solid #3a5020", borderRadius: 8, padding: "1px 7px" }}>👤 {c.angler}</span>}
                             </div>
                           </div>
                         </div>
