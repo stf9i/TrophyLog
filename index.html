@@ -1911,6 +1911,7 @@ function App() {
   const [anglerInput, setAnglerInput] = useState("");
   const [anglerFilter, setAnglerFilter] = useState("all");
   const [statsFilter, setStatsFilter] = useState("all");
+  const [statsAnglerFilter, setStatsAnglerFilter] = useState("all");
   const [ultraRealistic, setUltraRealistic] = useState(false);
   const [form, setForm] = useState({ length: "", water: ULTEN_WATERS[0], weight: "", bait: "" });
   const [formError, setFormError] = useState("");
@@ -2227,7 +2228,6 @@ function App() {
 
           // Compute stats
           const allAnglersList = [...new Set(catches.map(c => c.angler).filter(Boolean))];
-          const [statsAnglerFilter, setStatsAnglerFilter] = useState("all");
           const baseCatches = statsAnglerFilter === "all" ? seasonCatches : seasonCatches.filter(c => c.angler === statsAnglerFilter);
           const avgLen = baseCatches.length ? (baseCatches.reduce((s, c) => s + c.length, 0) / baseCatches.length).toFixed(1) : "-";
           const maxCatch = baseCatches.length ? baseCatches.reduce((b, c) => c.length > b.length ? c : b, baseCatches[0]) : null;
