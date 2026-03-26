@@ -1,0 +1,19 @@
+name: Supabase Keep-Alive
+ 
+on:
+  schedule:
+    - cron: '0 8 */3 * *'  # alle 3 Tage um 08:00 UTC
+  workflow_dispatch:        # auch manuell auslösbar
+ 
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          curl -s \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92a2V3bGRqd3RhZ3JwaXZrZ3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTQ4NjksImV4cCI6MjA4ODIzMDg2OX0.JSS4hWk1Jt64Ul8PPHRe06ldbI9jsmrN1lFS8h809Bk" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92a2V3bGRqd3RhZ3JwaXZrZ3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTQ4NjksImV4cCI6MjA4ODIzMDg2OX0.JSS4hWk1Jt64Ul8PPHRe06ldbI9jsmrN1lFS8h809Bk" \
+            "https://ovkewldjwtagrpivkgyc.supabase.co/rest/v1/catches?select=count&limit=1" \
+            && echo "✅ Supabase is alive"
+ 
