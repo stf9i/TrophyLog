@@ -69,17 +69,80 @@ async function loadCatches() {
 }
 
 async function saveCatches(catches) {
+  // Only save to localStorage – used for bulk sync
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catches)); } catch {}
+}
+
+async function compressPhoto(dataUrl, maxWidth = 800, quality = 0.75) {
+  return new Promise(resolve => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch { resolve(dataUrl); }
+  });
+}
+
+async function saveSingleCatch(c) {
+  // Save one catch to localStorage list + upsert to Supabase individually
   try {
+    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const updated = [c, ...existing.filter(x => x.id !== c.id)];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
+  try {
+    const payload = [{ id: c.id, species: c.species, length: c.length, water: c.water, weight: c.weight||null, bait: c.bait||null, photo: c.photo||null, date: c.date, season: c.season, angler: c.angler||"" }];
+    const payloadSize = JSON.stringify(payload).length;
+    console.log("📤 Sending to Supabase, size:", Math.round(payloadSize/1024) + " KB");
+    window.__lastSyncSize = Math.round(payloadSize/1024) + " KB";
     await sbFetch("/rest/v1/catches", {
       method: "POST", prefer: "resolution=merge-duplicates",
-      body: JSON.stringify(catches.map(c => ({ id: c.id, species: c.species, length: c.length, water: c.water, weight: c.weight||null, bait: c.bait||null, photo: c.photo||null, date: c.date, season: c.season, angler: c.angler||"" })))
+      body: JSON.stringify(payload)
     });
-  } catch(e) { console.warn("Supabase save failed:", e.message); }
+    console.log("✅ Catch saved to Supabase:", c.id);
+    window.__lastSyncError = null;
+    window.__lastSyncStatus = "✅ Gespeichert (" + Math.round(payloadSize/1024) + " KB)";
+  } catch(e) {
+    console.warn("❌ Supabase save failed:", e.message);
+    window.__lastSyncError = e.message;
+    window.__lastSyncStatus = "❌ Fehler: " + e.message;
+  }
 }
 
 async function deleteCatchDB(id) {
   try { await sbFetch("/rest/v1/catches?id=eq." + id, { method: "DELETE" }); } catch {}
+}
+
+async function syncPending() {
+  // Compare localStorage vs Supabase and upload missing entries
+  try {
+    const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    if (!local.length) return 0;
+    const remote = await sbFetch("/rest/v1/catches?select=id");
+    const remoteIds = new Set(remote.map(r => r.id));
+    const missing = local.filter(c => !remoteIds.has(c.id));
+    if (!missing.length) { console.log("✅ All catches synced"); return 0; }
+    console.log("📤 Syncing", missing.length, "missing catches...");
+    for (const c of missing) {
+      await sbFetch("/rest/v1/catches", {
+        method: "POST", prefer: "resolution=merge-duplicates",
+        body: JSON.stringify([{ id: c.id, species: c.species, length: c.length, water: c.water, weight: c.weight||null, bait: c.bait||null, photo: c.photo||null, date: c.date, season: c.season, angler: c.angler||"" }])
+      });
+      console.log("✅ Synced catch:", c.id);
+    }
+    return missing.length;
+  } catch(e) {
+    console.warn("❌ Sync failed:", e.message);
+    return 0;
+  }
 }
 
 // ─── FISH DATA ─────────────────────────────────────────────────────────────────
@@ -1912,6 +1975,7 @@ function App() {
   const [anglerFilter, setAnglerFilter] = useState("all");
   const [statsFilter, setStatsFilter] = useState("all");
   const [statsAnglerFilter, setStatsAnglerFilter] = useState("all");
+  const [syncLog, setSyncLog] = useState([]);
   const [ultraRealistic, setUltraRealistic] = useState(false);
   const [form, setForm] = useState({ length: "", water: ULTEN_WATERS[0], weight: "", bait: "" });
   const [formError, setFormError] = useState("");
@@ -1924,11 +1988,13 @@ function App() {
 
   useEffect(() => {
     loadCatches().then(data => { setCatches(data); setLoading(false); });
+    // Auto-sync any pending local catches
+    setTimeout(() => syncPending(), 3000);
   }, []);
 
   const seasonCatches = catches.filter(c => c.season === currentSeason);
 
-  const addCatch = useCallback(() => {
+  const addCatch = useCallback(async () => {
     if (!form.length || isNaN(parseFloat(form.length)) || parseFloat(form.length) <= 0) {
       setFormError("Bitte eine gültige Länge eingeben.");
       return;
@@ -1943,14 +2009,15 @@ function App() {
       water,
       weight: form.weight ? parseFloat(form.weight) : null,
       bait: form.bait || null,
-      photo: formPhoto || null,
+      photo: formPhoto ? await compressPhoto(formPhoto) : null,
       date: new Date().toISOString(),
       season: currentSeason,
       angler: anglerName,
     };
     const updated = [newCatch, ...catches];
     setCatches(updated);
-    saveCatches(updated);
+    await saveSingleCatch(newCatch);
+    setSyncLog(log => [`${new Date().toLocaleTimeString()} · ${window.__lastSyncStatus || "?"}`, ...log].slice(0, 5));
     setShowForm(false);
     setForm({ length: "", water: ULTEN_WATERS[0], weight: "", bait: "" });
     setFormPhoto(null);
@@ -2017,8 +2084,19 @@ function App() {
               style={{ background: "none", border: "none", color: "#c8a060", fontSize: 22, padding: "0 4px 0 0", lineHeight: 1 }}>←</button>
           )}
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "#7a8898", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "Georgia, serif", cursor: "pointer" }} title="Tippen um Namen zu ändern" onClick={() => { const n=prompt("Dein Name:",anglerName); if(n&&n.trim()){localStorage.setItem("fischerei-angler",n.trim());setAnglerName(n.trim());} }}>
-              👤 {anglerName} · {currentSeason}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 11, color: "#7a8898", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "Georgia, serif", cursor: "pointer" }} title="Tippen um Namen zu ändern" onClick={() => { const n=prompt("Dein Name:",anglerName); if(n&&n.trim()){localStorage.setItem("fischerei-angler",n.trim());setAnglerName(n.trim());} }}>
+                👤 {anglerName} · {currentSeason}
+              </div>
+              <button title="Sync-Log anzeigen / Einträge synchronisieren" onClick={async () => {
+                const n = await syncPending();
+                const msg = n > 0 ? `✅ ${n} Fang/Fänge synchronisiert!` : "✅ Alles synchronisiert!";
+                setSyncLog(log => [new Date().toLocaleTimeString() + " · " + msg, ...log].slice(0, 5));
+                if (n > 0) { const data = await loadCatches(); setCatches(data); }
+              }} style={{ background: "none", border: "1px solid #3a4858", borderRadius: 6, color: "#7a8898", fontSize: 11, padding: "2px 7px", cursor: "pointer" }}>
+                ↑↓
+              </button>
+            </div>
             </div>
             <div style={{ fontSize: 20, fontWeight: 700, color: "#e8d8b0", lineHeight: 1.2, fontFamily: "'Libre Baskerville', Georgia, serif" }}>
               {view === "species" ? selectedSpecies?.name : view === "stats" ? "Statistiken" : "Fangtagebuch"}
@@ -2607,6 +2685,19 @@ function App() {
       )}
 
       {/* BOTTOM TABS */}
+      {/* SYNC LOG OVERLAY */}
+      {syncLog.length > 0 && (
+        <div style={{ position: "fixed", bottom: 70, left: 0, right: 0, maxWidth: 480, margin: "0 auto", zIndex: 300, padding: "0 12px", pointerEvents: "none" }}>
+          <div style={{ background: "#0d1520ee", border: "1px solid #2a3848", borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 10, color: "#c8a060", letterSpacing: "0.1em", marginBottom: 6, fontFamily: "Georgia, serif" }}>SYNC LOG</div>
+            {syncLog.map((l, i) => (
+              <div key={i} style={{ fontSize: 11, color: l.includes("❌") ? "#e06060" : "#6ab080", fontFamily: "monospace", marginBottom: 2 }}>{l}</div>
+            ))}
+            <div style={{ fontSize: 10, color: "#6a7888", marginTop: 6, pointerEvents: "auto", cursor: "pointer", textAlign: "right" }} onClick={() => setSyncLog([])}>schließen ✕</div>
+          </div>
+        </div>
+      )}
+
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#0d1117", borderTop: "1px solid #2a3040", display: "flex", zIndex: 100 }}>
         {[
           { key: "grid", label: "Übersicht", icon: "⊞" },
